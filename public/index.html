@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lead Reload HQ — Order Exclusive Leads</title>
+  <meta name="description" content="Lead Reload HQ — premium aged opt-in insurance leads. Order exclusive inventory by type, age band, quantity, and state." />
+  <meta property="og:title" content="Lead Reload HQ — Order Exclusive Leads" />
+  <meta property="og:description" content="Aged opt-ins that convert. Buy the data, spend on the workflow." />
+  <meta name="theme-color" content="#0a1224" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=20260924hq" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="logo" aria-label="Lead Reload HQ home">
+        <img class="logo-img" src="lead-reload-logo.png?v=20260924hq" alt="Lead Reload" width="220" height="60" decoding="async" />
+        <span class="hq-badge" title="Lead Reload HQ">HQ</span>
+      </a>
+      <span class="status-chip" id="pay-status-chip" title="Payment status">Payments coming online tonight</span>
+    </div>
+  </header>
+
+
+  <!-- Thin fixed order bar (States step, mobile) -->
+  <div class="compact-order-bar" id="compact-order-bar" hidden>
+    <div class="container compact-order-inner">
+      <p class="compact-order-line">
+        <strong id="compact-total">$0.00</strong>
+        <span class="compact-sep" aria-hidden="true">·</span>
+        <span id="compact-qty">100</span>
+        <span class="compact-sep" aria-hidden="true">·</span>
+        <span id="compact-states-n">0 states</span>
+      </p>
+      <button type="button" class="compact-expand" id="compact-expand" aria-expanded="false">Details</button>
+    </div>
+  </div>
+
+  <main class="container">
+    <section class="hero">
+      <p class="eyebrow">Lead Reload HQ · Insurance lead marketplace</p>
+      <h1>Order exclusive leads</h1>
+      <p class="hero-sub">Choose your lead type, age band, quantity, and states — then check out securely. Volume buyers welcome.</p>
+      <aside class="value-callout" aria-label="How aged opt-ins convert">
+        <p class="value-callout-kicker">Sales floor truth</p>
+        <h2 class="value-callout-title">Aged opt-ins that convert</h2>
+        <p class="value-callout-body">Fresh lists don’t close deals — consistent follow-up does. Buy the data, then put most of your spend into the workflow (dials, texts, drips, CRM). That’s where aged opt-ins turn into appointments.</p>
+      </aside>
+    </section>
+
+    <!-- Progress -->
+    <nav class="wizard-progress" aria-label="Order steps">
+      <ol id="progress-steps">
+        <li data-step="1" class="active"><span>1</span> Type</li>
+        <li data-step="2"><span>2</span> Age</li>
+        <li data-step="3"><span>3</span> Qty</li>
+        <li data-step="4"><span>4</span> States</li>
+        <li data-step="5"><span>5</span> Review</li>
+        <li data-step="6"><span>6</span> Pay</li>
+      </ol>
+    </nav>
+
+    <div class="wizard-layout">
+      <!-- Steps panel -->
+      <div class="wizard-panel card">
+        <!-- Step 1: Lead type -->
+        <section class="step" id="step-1" data-step="1">
+          <h2>Choose lead type</h2>
+          <p class="step-desc">Select the product category for your order.</p>
+          <p class="step-nudge">Data is the cheap piece. Plan to spend the majority on the touches that work it.</p>
+          <div class="type-grid" role="radiogroup" aria-label="Lead type">
+            <label class="type-card">
+              <input type="radio" name="leadType" value="general-life" />
+              <div class="type-card-body">
+                <div class="type-icon" aria-hidden="true">◈</div>
+                <h3>General Life</h3>
+                <p>Life insurance leads across age bands.</p>
+              </div>
+            </label>
+            <label class="type-card">
+              <input type="radio" name="leadType" value="mortgage-protection" />
+              <div class="type-card-body">
+                <div class="type-icon" aria-hidden="true">⌂</div>
+                <h3>Mortgage Protection</h3>
+                <p>Leads focused on mortgage protection coverage.</p>
+              </div>
+            </label>
+            <label class="type-card">
+              <input type="radio" name="leadType" value="private-health" />
+              <div class="type-card-body">
+                <div class="type-icon" aria-hidden="true">✚</div>
+                <h3>Private Health</h3>
+                <p>Private health insurance lead inventory.</p>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <!-- Step 2: Age band -->
+        <section class="step hidden" id="step-2" data-step="2">
+          <h2>Choose age band</h2>
+          <p class="step-desc">Pricing tier based on lead age. Unit price shown per lead.</p>
+          <div class="age-list" id="age-band-list" role="radiogroup" aria-label="Age band"></div>
+        </section>
+
+        <!-- Step 3: Quantity -->
+        <section class="step hidden" id="step-3" data-step="3">
+          <h2>Choose quantity</h2>
+          <p class="step-desc">How many leads do you need?</p>
+          <div class="qty-control">
+            <button type="button" class="qty-btn" id="qty-minus" aria-label="Decrease quantity">−</button>
+            <input type="number" id="quantity" min="1" max="100000" value="100" inputmode="numeric" aria-describedby="qty-volume-callout qty-custom-hint" />
+            <button type="button" class="qty-btn" id="qty-plus" aria-label="Increase quantity">+</button>
+          </div>
+          <div class="qty-presets">
+            <button type="button" class="chip-btn" data-qty="50">50</button>
+            <button type="button" class="chip-btn" data-qty="100">100</button>
+            <button type="button" class="chip-btn" data-qty="250">250</button>
+            <button type="button" class="chip-btn" data-qty="500">500</button>
+            <button type="button" class="chip-btn" data-qty="1000">1,000</button>
+            <button type="button" class="chip-btn chip-btn-volume" data-qty="2500">2,500</button>
+            <button type="button" class="chip-btn chip-btn-volume" data-qty="5000">5,000</button>
+            <button type="button" class="chip-btn chip-btn-volume" data-qty="10000">10,000</button>
+          </div>
+          <p class="qty-volume-callout" id="qty-volume-callout" role="note">
+            <strong>Not capped at 1,000.</strong> Buyers routinely order 2,500 / 5,000 / 10,000+.
+            Type any custom quantity up to <strong>100,000</strong> — larger or multi-state programs welcome; we will confirm delivery windows.
+          </p>
+          <p class="qty-custom-hint" id="qty-custom-hint">Custom quantity: use the field above (or ±) — presets are shortcuts only.</p>
+          <p class="qty-hint">Unit price: <strong id="qty-unit-price">—</strong> · Est. total: <strong id="qty-est-total">—</strong></p>
+        </section>
+
+        <!-- Step 4: States -->
+        <section class="step hidden" id="step-4" data-step="4">
+          <h2>Choose state(s)</h2>
+          <p class="step-desc">Select one or more U.S. states for delivery targeting.</p>
+          <div class="states-toolbar">
+            <input type="search" id="state-search" placeholder="Search states…" autocomplete="off" />
+            <div class="states-actions">
+              <button type="button" class="link-btn" id="select-all-states">Select all</button>
+              <button type="button" class="link-btn" id="clear-states">Clear</button>
+            </div>
+          </div>
+          <div class="states-grid" id="states-grid"></div>
+          <p class="states-count"><span id="states-selected-count">0</span> state(s) selected</p>
+        </section>
+
+        <!-- Step 5: Review (+ billing cadence) -->
+        <section class="step hidden" id="step-5" data-step="5">
+          <h2>Review order</h2>
+          <p class="step-desc">Confirm details and how you want to pay before checkout.</p>
+
+          <fieldset class="billing-cadence" id="billing-cadence">
+            <legend class="billing-cadence-legend">Billing</legend>
+            <p class="billing-cadence-hint">Same unit price × quantity each bill. Choose one-time, weekly, or monthly reload.</p>
+            <div class="billing-grid" role="radiogroup" aria-label="Billing cadence">
+              <label class="billing-card">
+                <input type="radio" name="billingCadence" value="one-time" checked />
+                <div class="billing-card-body">
+                  <h3>One-time</h3>
+                  <p>Single purchase for this order.</p>
+                  <span class="billing-tag" id="billing-tag-one-time">—</span>
+                </div>
+              </label>
+              <label class="billing-card">
+                <input type="radio" name="billingCadence" value="weekly" />
+                <div class="billing-card-body">
+                  <h3>Weekly</h3>
+                  <p>Same order every week until canceled.</p>
+                  <span class="billing-tag" id="billing-tag-weekly">—</span>
+                </div>
+              </label>
+              <label class="billing-card">
+                <input type="radio" name="billingCadence" value="monthly" />
+                <div class="billing-card-body">
+                  <h3>Monthly</h3>
+                  <p>Same order every month until canceled.</p>
+                  <span class="billing-tag" id="billing-tag-monthly">—</span>
+                </div>
+              </label>
+            </div>
+          </fieldset>
+
+          <dl class="review-summary" id="review-summary"></dl>
+        </section>
+
+        <!-- Step 6: Checkout (mock Stripe) -->
+        <section class="step hidden" id="step-6" data-step="6">
+          <h2>Checkout</h2>
+          <p class="step-desc" id="checkout-desc">Enter your work email and how you’ll work these leads. You’ll finish on Stripe’s secure checkout.</p>
+
+          <div class="stripe-mock" id="stripe-form">
+            <div class="stripe-brand">
+              <svg class="stripe-logo" viewBox="0 0 60 25" aria-hidden="true"><text x="0" y="18" font-family="system-ui,sans-serif" font-weight="700" font-size="20" fill="#635BFF">stripe</text></svg>
+              <span class="secure-badge" id="secure-badge">🔒 Stripe Checkout</span>
+            </div>
+
+            <div class="pay-offline-banner" id="pay-offline-banner" hidden>
+              <strong>Payments coming online tonight.</strong>
+              <span>Stripe keys are being connected — checkout is temporarily paused. Your cart is saved on this device.</span>
+            </div>
+
+            <label class="field">
+              <span>Work email</span>
+              <input type="email" id="pay-email" placeholder="agent@agency.com" autocomplete="email" />
+            </label>
+
+            <fieldset class="contact-methods" id="contact-methods">
+              <legend class="contact-methods-legend">How do you plan to work these leads?</legend>
+              <p class="contact-methods-hint">Select all that apply. Required before paying.</p>
+              <div class="contact-methods-grid" role="group" aria-label="Contact methods">
+                <label class="contact-check">
+                  <input type="checkbox" name="contactMethod" value="Dialer" />
+                  <span>Dialer</span>
+                </label>
+                <label class="contact-check">
+                  <input type="checkbox" name="contactMethod" value="CRM / follow-up system" />
+                  <span>CRM / follow-up system</span>
+                </label>
+                <label class="contact-check">
+                  <input type="checkbox" name="contactMethod" value="Text" />
+                  <span>Text</span>
+                </label>
+                <label class="contact-check">
+                  <input type="checkbox" name="contactMethod" value="Email" />
+                  <span>Email</span>
+                </label>
+                <label class="contact-check">
+                  <input type="checkbox" name="contactMethod" value="SETR" />
+                  <span>SETR</span>
+                </label>
+                <label class="contact-check">
+                  <input type="checkbox" name="contactMethod" value="Other" id="contact-other-cb" />
+                  <span>Other</span>
+                </label>
+              </div>
+              <label class="field contact-other-field hidden" id="contact-other-wrap">
+                <span>Please specify</span>
+                <input type="text" id="contact-other-text" placeholder="How will you work these leads?" maxlength="120" autocomplete="off" />
+              </label>
+              <p class="contact-methods-error hidden" id="contact-methods-error" role="alert">Select at least one option to continue.</p>
+            </fieldset>
+
+            <!-- SETR recommended-partner card (affiliate; soft-sell before Pay) -->
+            <aside class="partner-card" id="setr-partner-card" aria-label="Recommended partner">
+              <div class="partner-card-inner" id="setr-partner-content"></div>
+            </aside>
+
+            <p class="pay-cadence-note" id="pay-cadence-note">One-time charge</p>
+            <button type="button" class="btn btn-stripe" id="pay-btn">
+              Continue to Stripe · <span id="pay-amount">$0.00</span>
+            </button>
+            <p class="stripe-fineprint" id="stripe-fineprint">You’ll complete payment on Stripe’s hosted checkout. Lead Reload HQ never stores card numbers.</p>
+            <p class="pay-error hidden" id="pay-error" role="alert"></p>
+          </div>
+
+          <!-- Success -->
+          <div class="success-panel hidden" id="success-panel">
+            <div class="success-icon" aria-hidden="true">✓</div>
+            <h3>Checkout started</h3>
+            <p id="success-copy">If you just completed Stripe Checkout, thank you — fulfillment will follow your state and age-band selection. Subscriptions renew until canceled.</p>
+            <dl class="review-summary" id="success-summary"></dl>
+            <p class="order-id">Reference: <code id="order-id"></code></p>
+
+            <p class="partner-reminder" id="setr-partner-reminder">Recommended partner: SETR — <a href="https://setrpro.io" target="_blank" rel="noopener noreferrer">setrpro.io</a></p>
+
+            <button type="button" class="btn btn-primary" id="start-over">Place another order</button>
+          </div>
+        </section>
+
+        <div class="wizard-nav" id="wizard-nav">
+          <button type="button" class="btn btn-ghost" id="btn-back" disabled>Back</button>
+          <button type="button" class="btn btn-primary" id="btn-next">Continue</button>
+        </div>
+      </div>
+
+      <!-- Sticky order preview -->
+      <aside class="order-preview card" id="order-preview" aria-live="polite">
+        <h2 class="preview-title">Order preview</h2>
+        <ul class="preview-list" id="preview-list">
+          <li><span>Lead type</span><strong id="prev-type">—</strong></li>
+          <li><span>Age band</span><strong id="prev-age">—</strong></li>
+          <li><span>Quantity</span><strong id="prev-qty">—</strong></li>
+          <li><span>States</span><strong id="prev-states">—</strong></li>
+          <li><span>Unit price</span><strong id="prev-unit">—</strong></li>
+          <li><span>Billing</span><strong id="prev-billing">One-time</strong></li>
+        </ul>
+        <div class="preview-total">
+          <span id="prev-total-label">Total</span>
+          <strong id="prev-total">$0.00</strong>
+        </div>
+        <p class="preview-note">Prices shown are customer (retail) rates.</p>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>© Lead Reload HQ · Premium aged opt-in marketplace</p>
+      <p class="admin-note"><a href="/admin/">Admin</a> · Volume &amp; custom programs welcome</p>
+    </div>
+  </footer>
+
+  <script src="app.js?v=20260924hq"></script>
+</body>
+</html>

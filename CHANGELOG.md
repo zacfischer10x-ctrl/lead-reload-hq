@@ -1,0 +1,37 @@
+# Changelog — Lead Reload HQ
+
+Newest first. Times are ET (America/New_York). Add a dated entry after every change.
+
+## 2026-09-24
+
+### Evening ET — Repo + continuous deployment _(in progress)_
+- Prepared source as a git repo (branch `main`); secret-scanned tracked files (no secrets found; `.env` / `node_modules/` / `.netlify/` ignored).
+- Added `PROJECT_BRIEF.md` (read first) and this `CHANGELOG.md`; README points to the brief.
+- Next: push to GitHub and connect Netlify continuous deployment from `main`. Manual `netlify deploy --prod` retires once CD is live.
+
+### ~4:00 PM ET — SITE_URL switched to custom domain
+- Set Netlify env `SITE_URL=https://leadreloadhq.com` and redeployed.
+
+### ~3:40–4:00 PM ET — Custom domain live
+- Connected `leadreloadhq.com` via GoDaddy DNS (apex A `75.2.60.5`, `www` CNAME `lead-reload-hq.netlify.app`).
+- Let's Encrypt SSL provisioned for apex + www; Force HTTPS enabled.
+
+### Afternoon ET — Admin auth upgrade
+- Replaced single shared password with separate invite-only logins for `dan` and `zac` (`ADMIN_DAN_PASSWORD` / `ADMIN_ZAC_PASSWORD`; legacy `ADMIN_PASSWORD` maps to `dan`), signed httpOnly session cookie `lr_admin_session` (`ADMIN_SESSION_SECRET`). Unauthenticated admin API calls return 401.
+
+### Afternoon ET — Thin admin
+- Added `/admin/` UI and functions: `admin-orders`, `admin-subscriptions`, `admin-fulfill`, `admin-login`, `admin-logout`.
+
+### Afternoon ET — Stripe scaffolding
+- `create-checkout`: dynamic Stripe Checkout Sessions (`price_data`) for one-time (payment mode) and weekly/monthly (recurring) on one cart; order details in metadata.
+- `create-portal`: Stripe Customer Portal.
+- `stripe-webhook`: stores orders/subscriptions in Netlify Blobs.
+- Graceful "Payments coming online tonight" state (`{ok:false, reason:'stripe_not_configured'}`) until Stripe keys are set.
+
+### Afternoon ET — Branding, messaging, quantities
+- HQ branding (header HQ badge, title/meta, footer).
+- Kept aged opt-ins / spend-on-workflow hero messaging.
+- Volume presets 2,500 / 5,000 / 10,000; copy states orders are not capped at 1,000, custom quantities up to 100,000.
+
+### Afternoon ET — New standalone site
+- Reused the earlier Lead Reload mockup as the base for a new standalone Netlify site `lead-reload-hq` (id `2d882b33-c92f-4484-acec-f2905d60fd83`). The old mockup site `effortless-nasturtium-30f8ff` was left untouched.

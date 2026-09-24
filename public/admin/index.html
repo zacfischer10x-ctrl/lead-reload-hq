@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lead Reload HQ — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="admin.css?v=20260924hq2" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="/">
+        <img src="/lead-reload-logo.png?v=20260924hq" alt="Lead Reload" width="180" height="48" />
+        <span class="hq-badge">HQ Admin</span>
+      </a>
+      <div class="top-right">
+        <span class="signed-in hidden" id="signed-in" aria-live="polite"></span>
+        <button type="button" class="btn ghost hidden" id="logout-btn">Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="login-panel" class="card login-card">
+      <h1>Admin login</h1>
+      <p class="muted">Invite-only access for Lead Reload HQ operators (<strong>dan</strong> / <strong>zac</strong>). No public signup. Passwords are set in Netlify env (<code>ADMIN_DAN_PASSWORD</code> / <code>ADMIN_ZAC_PASSWORD</code>).</p>
+      <label class="field">
+        <span>Username</span>
+        <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="dan or zac" />
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" id="password" name="password" autocomplete="current-password" />
+      </label>
+      <p class="error hidden" id="login-error" role="alert"></p>
+      <button type="button" class="btn primary" id="login-btn">Sign in</button>
+    </section>
+
+    <section id="dash-panel" class="hidden">
+      <div class="dash-head">
+        <div>
+          <h1>Operations desk</h1>
+          <p class="muted">One-time orders and active subscriptions. Empty until Stripe webhooks land.</p>
+        </div>
+        <button type="button" class="btn ghost" id="refresh-btn">Refresh</button>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="orders">Open / fulfilled orders</button>
+        <button type="button" class="tab" data-tab="subs">Subscriptions</button>
+      </div>
+
+      <div id="orders-view">
+        <div class="filters">
+          <label><input type="radio" name="orderFilter" value="open" checked /> Open</label>
+          <label><input type="radio" name="orderFilter" value="fulfilled" /> Fulfilled</label>
+          <label><input type="radio" name="orderFilter" value="all" /> All</label>
+        </div>
+        <div id="orders-list" class="list"></div>
+      </div>
+
+      <div id="subs-view" class="hidden">
+        <div id="subs-list" class="list"></div>
+      </div>
+
+      <aside id="detail" class="card detail hidden" aria-live="polite"></aside>
+    </section>
+  </main>
+
+  <script src="admin.js?v=20260924hq2"></script>
+</body>
+</html>
