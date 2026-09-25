@@ -4,6 +4,11 @@ Newest first. Times are ET (America/New_York). Add a dated entry after every cha
 
 ## 2026-09-25
 
+### ~2:25 PM ET — Repo set public for Netlify free-plan builds
+- Switched `zacfischer10x-ctrl/lead-reload-hq` from private to **public** so Netlify (free plan, 1 seat) can build commits from Zac’s GitHub without adding a team member.
+- Secrets remain in Netlify env only; this push re-triggers production deploy for Webby to confirm.
+
+
 ### ~10:40 AM ET — GitHub deploy key + webhook + first auto-deploy test
 - Added Netlify deploy key on `zacfischer10x-ctrl/lead-reload-hq` (title **Netlify**, read-only).
 - Push webhook to `https://api.netlify.com/hooks/github` already present from 2026-09-24.
