@@ -5,7 +5,9 @@
   "description": "Lead Reload HQ \u2014 B2B aged opt-in lead marketplace with Stripe checkout",
   "scripts": {
     "dev": "netlify dev",
-    "build": "echo 'Static site \u2014 no build step'"
+    "build": "echo 'Static site \u2014 no build step'",
+    "test": "node scripts/test-pricing.js",
+    "test:pricing": "node scripts/test-pricing.js"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",

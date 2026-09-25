@@ -24,7 +24,12 @@
     },
   };
 
-  /** Customer-facing unit prices (already wholesale × 1.30, rounded) */
+  /**
+   * Customer-facing unit prices (already wholesale × 1.30, rounded).
+   * DISPLAY ONLY — Stripe charges the server-side table in
+   * netlify/functions/lib/pricing.js (the unitPrice sent at checkout is
+   * ignored). Keep both in sync; `npm run test:pricing` fails if they differ.
+   */
   const PRICING = {
     privateHealth: [
       { id: "ph-u30", label: "Under 30 days", price: 0.52 },
