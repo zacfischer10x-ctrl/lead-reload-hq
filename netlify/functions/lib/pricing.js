@@ -7,11 +7,11 @@
  * computes every amount from this table and ignores any price the browser
  * sends.
  *
- * Seeded 2026-09-25 with exactly the customer prices the storefront shows in
- * public/app.js (LEAD_TYPES + PRICING, "wholesale × 1.30, rounded"). The
- * storefront still renders its own copy for display, so if you change a price
- * here you MUST change public/app.js to match (and vice versa).
- * `npm run test:pricing` fails if the two ever disagree.
+ * Prices set by Dan 2026-09-25: both lead-type tables use the same 5 age
+ * bands (under 30, 30–60, 60–90, 90–365, 365+ days). The storefront still
+ * renders its own copy for display (PRICING in public/app.js), so if you
+ * change a price here you MUST change public/app.js to match (and vice
+ * versa). `npm run test:pricing` fails if the two ever disagree.
  *
  * Pricing model (mirrors the frontend exactly):
  *   total = unit price for (lead type, age band) × quantity
@@ -32,25 +32,46 @@ const LEAD_TYPES = Object.freeze({
   "private-health": Object.freeze({ id: "private-health", label: "Private Health", pricingKey: "privateHealth" }),
 });
 
+/**
+ * Private Health, 90–365 days, in dollars per lead.
+ * Confirmed by Dan 2026-09-25 ($0.13); keep both values in sync.
+ * If the price ever changes, edit this line AND the matching
+ * `PRIVATE_HEALTH_90_365` line in public/app.js (same value), then `npm test`.
+ * Must be a whole number of cents (e.g. 0.13, 0.15).
+ */
+const PRIVATE_HEALTH_90_365 = 0.13;
+
+/** Dollars → integer cents; refuses fractional-cent prices. */
+function toCents(dollars) {
+  const cents = Math.round(dollars * 100);
+  if (!Number.isFinite(dollars) || dollars <= 0 || Math.abs(dollars * 100 - cents) > 1e-9) {
+    throw new Error(`pricing.js: invalid price ${dollars} (must be a positive whole number of cents)`);
+  }
+  return cents;
+}
+
 function band(id, label, unitCents) {
   return Object.freeze({ id, label, unitCents });
 }
 
-/** Customer-facing unit prices in cents, per age band. */
+/**
+ * Customer-facing unit prices in cents, per age band. Same 5 bands for both
+ * tables. Retired band ids (ph-90-180, ph-180-360, lm-90) are intentionally
+ * absent, so create-checkout answers them with 400 invalid_age_band.
+ */
 const PRICE_TABLES = Object.freeze({
   privateHealth: Object.freeze([
     band("ph-u30", "Under 30 days", 52),
     band("ph-30-60", "30–60 days", 33),
     band("ph-60-90", "60–90 days", 26),
-    band("ph-90-180", "90–180 days", 13),
-    band("ph-180-360", "180–360 days", 7),
+    band("ph-90-365", "90–365 days", toCents(PRIVATE_HEALTH_90_365)),
     band("ph-365", "365+ days", 3),
   ]),
   lifeMp: Object.freeze([
     band("lm-u30", "Under 30 days", 52),
     band("lm-30-60", "30–60 days", 39),
     band("lm-60-90", "60–90 days", 20),
-    band("lm-90", "90+ days", 10),
+    band("lm-90-365", "90–365 days", 10),
     band("lm-365", "365+ days", 3),
   ]),
 });
@@ -129,6 +150,7 @@ module.exports = {
   MIN_QTY,
   MAX_QTY,
   MIN_AMOUNT_CENTS,
+  PRIVATE_HEALTH_90_365,
   LEAD_TYPES,
   PRICE_TABLES,
   BILLING_CADENCES,

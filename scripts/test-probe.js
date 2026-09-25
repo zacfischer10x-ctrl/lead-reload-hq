@@ -15,6 +15,11 @@
  *  - Minimum order: totals under $0.50 show "Minimum order is $0.50. Add more
  *    leads." and never call create-checkout; a server amount_too_small reply
  *    shows the same message instead of the raw reason.
+ *  - Success copy (static HTML + the ?checkout=success message) no longer
+ *    points to the disabled customer portal; it says to reply to the receipt
+ *    email or contact us. No volume-discount wording in index.html.
+ *  - A saved cart with a retired age band (ph-90-180, ph-180-360, lm-90) is
+ *    cleared back to the Age step; new 90–365 bands show the right total.
  */
 
 const fs = require("fs");
@@ -24,6 +29,9 @@ const assert = require("assert");
 
 const ROOT = path.resolve(__dirname, "..");
 const APP_SRC = fs.readFileSync(path.join(ROOT, "public/app.js"), "utf8");
+const HTML_SRC = fs.readFileSync(path.join(ROOT, "public/index.html"), "utf8");
+const pricing = require(path.join(ROOT, "netlify/functions/lib/pricing.js"));
+const SUB_HELP = "To cancel or change a subscription, reply to your receipt email or contact us.";
 const MIN_MSG = "Minimum order is $0.50. Add more leads.";
 const OFFLINE = "Payments coming online tonight";
 
@@ -75,7 +83,7 @@ function makeElement(id) {
  * Boot app.js with a saved cart and scripted fetch replies.
  * probe / checkout: reply object, or an Error to simulate a network failure.
  */
-async function boot({ draft, probe, checkout }) {
+async function boot({ draft, probe, checkout, search = "" }) {
   const elements = {};
   const getEl = (id) => (elements[id] = elements[id] || makeElement(id));
   const store = { "lead-reload-draft": JSON.stringify(draft) };
@@ -91,7 +99,7 @@ async function boot({ draft, probe, checkout }) {
   };
 
   const window = {
-    location: { search: "", pathname: "/", href: "/" },
+    location: { search, pathname: "/", href: "/" },
     history: { replaceState() {} },
     matchMedia: () => ({ matches: false }),
     addEventListener() {},
@@ -219,7 +227,37 @@ async function pay(env, email = "buyer@example.com") {
   await pay(env);
   check(env.el("pay-error").textContent === "invalid_age_band", "other reasons unchanged");
 
-  console.log(`PASS — storefront probe + minimum order: ${passed} assertions`);
+  // ——— Success copy: no customer portal ———
+  env = await boot({ draft: baseDraft, probe: LIVE, search: "?checkout=success&session_id=cs_test_ok" });
+  const successCopy = env.el("success-copy").textContent;
+  check(successCopy.length > 0, "success copy rendered");
+  check(!/portal/i.test(successCopy), `success copy still mentions the portal: ${successCopy}`);
+  check(successCopy.includes(SUB_HELP), `success copy missing subscription help: ${successCopy}`);
+  check(env.el("order-id").textContent === "cs_test_ok", "order reference shown");
+  const staticCopy = (HTML_SRC.match(/<p id="success-copy">([\s\S]*?)<\/p>/) || [])[1] || "";
+  check(staticCopy.includes(SUB_HELP) && !/portal/i.test(staticCopy), `static success copy: ${staticCopy}`);
+  check(!/portal/i.test(HTML_SRC), "index.html must not mention the customer portal");
+  check(!/volume buyers|volume &amp; custom programs|discount/i.test(HTML_SRC), "index.html must not imply volume discounts");
+
+  // ——— Age bands (2026-09-25) ———
+  // Saved carts with retired bands are sent back to the Age step with no band.
+  for (const [leadType, ageBandId] of [["private-health", "ph-90-180"], ["private-health", "ph-180-360"], ["general-life", "lm-90"], ["mortgage-protection", "lm-90"]]) {
+    env = await boot({ draft: { ...baseDraft, leadType, ageBandId }, probe: LIVE, checkout: { ok: true, url: "https://checkout.stripe.test/x" } });
+    const saved = JSON.parse(env.store["lead-reload-draft"]);
+    check(saved.ageBandId === null && saved.step === 2, `retired ${ageBandId}: draft ${JSON.stringify(saved)}`);
+  }
+  // New 90–365 bands price correctly (Private Health uses PRIVATE_HEALTH_90_365).
+  for (const [leadType, ageBandId, cents] of [
+    ["general-life", "lm-90-365", 1000],
+    ["private-health", "ph-90-365", Math.round(pricing.PRIVATE_HEALTH_90_365 * 100) * 100],
+  ]) {
+    env = await boot({ draft: { ...baseDraft, leadType, ageBandId }, probe: LIVE });
+    const want = "$" + (cents / 100).toFixed(2);
+    check(env.el("pay-btn").innerHTML.includes(want), `${ageBandId} × 100 → ${env.el("pay-btn").innerHTML} (want ${want})`);
+    check(env.el("prev-age").textContent === "90–365 days", `${ageBandId} label`);
+  }
+
+  console.log(`PASS — storefront probe + minimum order + success copy + age bands: ${passed} assertions`);
 })().catch((err) => {
   console.error("FAIL:", err && err.message ? err.message : err);
   process.exit(1);

@@ -14,8 +14,12 @@
  * 2. For every lead type × age band, every quantity 1..100,000 and every
  *    billing cadence, asserts the server table (netlify/functions/lib/pricing.js)
  *    produces exactly the total the storefront displays.
- * 3. Calls the create-checkout handler with a stubbed Stripe client to prove
- *    the client-sent unitPrice is ignored and bad combos get a 400.
+ * 3. Asserts the table is exactly Dan's 2026-09-25 price list (same 5 age
+ *    bands for both lead types; the Private Health 90–365 price comes
+ *    from the single PRIVATE_HEALTH_90_365 constant, which must be
+ *    identical in public/app.js and lib/pricing.js).
+ * 4. Calls the create-checkout handler with a stubbed Stripe client to prove
+ *    the client-sent unitPrice is ignored and bad / retired combos get a 400.
  */
 
 const fs = require("fs");
@@ -48,7 +52,7 @@ function loadFrontendPricing() {
   const code =
     '"use strict";\n' +
     block +
-    "\n;({ LEAD_TYPES, PRICING, BILLING_OPTIONS, MAX_QTY, MIN_ORDER_CENTS, state, getBands, getSelectedBand, unitPrice, orderTotal, money, formatCadenceTotal });";
+    "\n;({ LEAD_TYPES, PRICING, PRIVATE_HEALTH_90_365, BILLING_OPTIONS, MAX_QTY, MIN_ORDER_CENTS, state, getBands, getSelectedBand, unitPrice, orderTotal, money, formatCadenceTotal });";
   // localStorage/document are only touched by functions we never call.
   return vm.runInNewContext(code, {}, { filename: "public/app.js#pricing-block" });
 }
@@ -72,6 +76,41 @@ check(
   fe.MIN_ORDER_CENTS === pricing.MIN_AMOUNT_CENTS,
   `minimum order differs: frontend ${fe.MIN_ORDER_CENTS} vs server ${pricing.MIN_AMOUNT_CENTS}`
 );
+
+// ——— Dan's price list (2026-09-25) ———
+// Private Health 90–365 (confirmed by Dan 2026-09-25) lives in ONE constant
+// per side; it must be identical on both sides.
+check(
+  typeof fe.PRIVATE_HEALTH_90_365 === "number" && fe.PRIVATE_HEALTH_90_365 === pricing.PRIVATE_HEALTH_90_365,
+  `PRIVATE_HEALTH_90_365 differs: public/app.js ${fe.PRIVATE_HEALTH_90_365} vs lib/pricing.js ${pricing.PRIVATE_HEALTH_90_365}`
+);
+const PH_90_365_CENTS = Math.round(pricing.PRIVATE_HEALTH_90_365 * 100);
+const BAND_LABELS = ["Under 30 days", "30–60 days", "60–90 days", "90–365 days", "365+ days"];
+const EXPECTED = {
+  lifeMp: [["lm-u30", 52], ["lm-30-60", 39], ["lm-60-90", 20], ["lm-90-365", 10], ["lm-365", 3]],
+  privateHealth: [["ph-u30", 52], ["ph-30-60", 33], ["ph-60-90", 26], ["ph-90-365", PH_90_365_CENTS], ["ph-365", 3]],
+};
+for (const key of Object.keys(EXPECTED)) {
+  const be = pricing.PRICE_TABLES[key].map((b) => [b.id, b.label, b.unitCents]);
+  const want = EXPECTED[key].map(([id, cents], i) => [id, BAND_LABELS[i], cents]);
+  check(JSON.stringify(be) === JSON.stringify(want), `server ${key} table ${JSON.stringify(be)} != ${JSON.stringify(want)}`);
+  const feRows = fe.PRICING[key].map((b) => [b.id, b.label, Math.round(b.price * 100)]);
+  check(JSON.stringify(feRows) === JSON.stringify(want), `storefront ${key} table ${JSON.stringify(feRows)} != ${JSON.stringify(want)}`);
+}
+check(
+  fe.PRICING.privateHealth.find((b) => b.id === "ph-90-365").price === fe.PRIVATE_HEALTH_90_365,
+  "storefront ph-90-365 must use PRIVATE_HEALTH_90_365"
+);
+const RETIRED = [
+  ["private-health", "ph-90-180"],
+  ["private-health", "ph-180-360"],
+  ["general-life", "lm-90"],
+  ["mortgage-protection", "lm-90"],
+];
+for (const [typeId, id] of RETIRED) {
+  check(!fe.PRICING[fe.LEAD_TYPES[typeId].pricingKey].some((b) => b.id === id), `storefront still lists retired ${id}`);
+  check(pricing.getBand(typeId, id) === null, `server still prices retired ${typeId}/${id}`);
+}
 
 const rows = [];
 let comboCount = 0;
@@ -162,6 +201,12 @@ for (const [input, reason] of [
   [{ leadType: "__proto__", ageBandId: "lm-u30", quantity: 100 }, "invalid_lead_type"],
   [{ leadType: "constructor", ageBandId: "lm-u30", quantity: 100 }, "invalid_lead_type"],
   [{ leadType: "general-life", ageBandId: "toString", quantity: 100 }, "invalid_age_band"],
+  [{ leadType: "general-life", ageBandId: "lm-90", quantity: 100 }, "invalid_age_band"],
+  [{ leadType: "private-health", ageBandId: "ph-90-180", quantity: 100 }, "invalid_age_band"],
+  [{ leadType: "private-health", ageBandId: "ph-180-360", quantity: 100 }, "invalid_age_band"],
+  [{ leadType: "general-life", ageBandId: "ph-90-365", quantity: 100 }, "invalid_age_band"],
+  [{ leadType: "private-health", ageBandId: "lm-90-365", quantity: 100 }, "invalid_age_band"],
+  [{ leadType: "private-health", ageBandId: "ph-365", quantity: 16 }, "amount_too_small"],
   [{ leadType: "general-life", ageBandId: "lm-u30", quantity: 1.5 }, "invalid_quantity"],
   [{ leadType: "general-life", ageBandId: "lm-u30", quantity: 0 }, "invalid_quantity"],
   [{ leadType: "general-life", ageBandId: "lm-u30", quantity: 100001 }, "invalid_quantity"],
@@ -237,20 +282,45 @@ async function handlerTests() {
   check(s.line_items[0].price_data.product_data.name === "Lead Reload HQ — Mortgage Protection (365+ days)", "product name");
   check(s.line_items[0].price_data.unit_amount === 15000, "5000 × $0.03 = $150.00");
 
-  // Weekly / monthly subscriptions, same amount per bill
-  r = await call({ ...base, leadType: "private-health", ageBandId: "ph-90-180", quantity: 2500, billingCadence: "weekly" });
+  // Weekly / monthly subscriptions, same amount per bill (PH 90–365 price from the constant)
+  const ph2500 = PH_90_365_CENTS * 2500;
+  r = await call({ ...base, leadType: "private-health", ageBandId: "ph-90-365", quantity: 2500, billingCadence: "weekly" });
   s = created.at(-1);
   check(s.mode === "subscription" && s.line_items[0].price_data.recurring.interval === "week", "weekly");
-  check(s.line_items[0].price_data.unit_amount === 32500 && s.subscription_data.metadata.amountCents === "32500", "weekly amount");
-  r = await call({ ...base, leadType: "private-health", ageBandId: "ph-90-180", quantity: 2500, billingCadence: "monthly" });
+  check(s.line_items[0].price_data.unit_amount === ph2500 && s.subscription_data.metadata.amountCents === String(ph2500), "weekly amount");
+  check(s.metadata.ageBandLabel === "90–365 days" && s.line_items[0].price_data.product_data.name === "Lead Reload HQ — Private Health (90–365 days)", "PH 90–365 label");
+  r = await call({ ...base, leadType: "private-health", ageBandId: "ph-90-365", quantity: 2500, billingCadence: "monthly" });
   s = created.at(-1);
-  check(s.line_items[0].price_data.recurring.interval === "month" && s.line_items[0].price_data.unit_amount === 32500, "monthly");
+  check(s.line_items[0].price_data.recurring.interval === "month" && s.line_items[0].price_data.unit_amount === ph2500, "monthly");
+
+  // Post-merge checklist amounts (100 leads)
+  for (const [leadType, ageBandId, cents] of [
+    ["general-life", "lm-u30", 5200],
+    ["mortgage-protection", "lm-90-365", 1000],
+    ["private-health", "ph-30-60", 3300],
+    ["private-health", "ph-90-365", PH_90_365_CENTS * 100],
+  ]) {
+    r = await call({ ...base, leadType, ageBandId, quantity: 100 });
+    check(r.status === 200 && created.at(-1).line_items[0].price_data.unit_amount === cents, `${leadType}/${ageBandId} × 100 = ${cents}c`);
+  }
+
+  // $0.50 minimum: 17 × $0.03 = $0.51 is allowed for both tables
+  for (const [leadType, ageBandId] of [["general-life", "lm-365"], ["private-health", "ph-365"]]) {
+    r = await call({ ...base, leadType, ageBandId, quantity: 17 });
+    check(r.status === 200 && created.at(-1).line_items[0].price_data.unit_amount === 51, `${ageBandId} × 17 = $0.51 allowed`);
+  }
 
   // Rejections (no Stripe session created)
   const before = created.length;
   for (const [body, reason] of [
     [{ ...base, ageBandId: "ph-u30" }, "invalid_age_band"],
     [{ ...base, leadType: "private-health", ageBandId: "lm-90" }, "invalid_age_band"],
+    // Retired bands (removed 2026-09-25) → 400
+    [{ ...base, leadType: "private-health", ageBandId: "ph-90-180" }, "invalid_age_band"],
+    [{ ...base, leadType: "private-health", ageBandId: "ph-180-360" }, "invalid_age_band"],
+    [{ ...base, leadType: "general-life", ageBandId: "lm-90" }, "invalid_age_band"],
+    [{ ...base, leadType: "mortgage-protection", ageBandId: "lm-90" }, "invalid_age_band"],
+    [{ ...base, leadType: "general-life", ageBandId: "ph-90-365" }, "invalid_age_band"],
     [{ ...base, leadType: "free-leads" }, "invalid_lead_type"],
     [{ ...base, leadType: "__proto__" }, "invalid_lead_type"],
     [{ ...base, ageBandId: "does-not-exist" }, "invalid_age_band"],
@@ -261,6 +331,7 @@ async function handlerTests() {
     [{ ...base, states: [] }, "invalid_states"],
     [{ ...base, email: "nope" }, "invalid_cart"],
     [{ ...base, ageBandId: "lm-365", quantity: 16 }, "amount_too_small"],
+    [{ ...base, leadType: "private-health", ageBandId: "ph-365", quantity: 16 }, "amount_too_small"],
   ]) {
     r = await call(body);
     check(r.status === 400 && r.data.ok === false && r.data.reason === reason, `expected 400 ${reason}, got ${r.status} ${JSON.stringify(r.data)}`);
@@ -274,7 +345,8 @@ handlerTests()
     for (const [type, id, label, price] of rows) {
       console.log(`  ${type.padEnd(20)} ${id.padEnd(11)} ${label.padEnd(14)} ${price} / lead`);
     }
-    console.log(`\nCombos checked: ${comboCount} (lead type × age band)`);
+    console.log(`\nPrivate Health 90–365 (PRIVATE_HEALTH_90_365): $${pricing.PRIVATE_HEALTH_90_365.toFixed(2)} (storefront and server match)`);
+    console.log(`Combos checked: ${comboCount} (lead type × age band)`);
     console.log(`Quantities checked per combo: 1..${pricing.MAX_QTY} (${qtyChecks.toLocaleString("en-US")} totals)`);
     console.log("Below Stripe $0.50 minimum (storefront shows a total, server returns 400 amount_too_small):");
     for (const b of belowMinimum) console.log("  " + b);

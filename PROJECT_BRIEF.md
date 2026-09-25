@@ -2,7 +2,7 @@
 
 > **Read this first.** Anyone (human or agent) changing this repo must read this brief before touching anything, and follow the [Working rules](#working-rules) at the bottom.
 
-_Last updated: 2026-09-24 (ET)_
+_Last updated: 2026-09-25 (ET)_
 
 ---
 
@@ -87,7 +87,7 @@ netlify/functions/          Serverless functions
   lib/                      Shared helpers: auth.js (sessions/allowlist), blobs.js,
                             http.js (JSON/CORS/SITE_URL), stripe-client.js,
                             pricing.js (server-side price table — must match public/app.js)
-scripts/                    test-pricing.js, test-webhook.js, test-portal.js (`npm test`, no deps)
+scripts/                    test-pricing.js, test-webhook.js, test-portal.js, test-probe.js (`npm test`, no deps)
 netlify.toml                Build settings, /api/* → functions redirect, /admin redirect, security headers
 package.json                Deps: stripe, @netlify/blobs, cookie
 .env.example                Placeholder env var names only (real values live in Netlify)
@@ -107,9 +107,13 @@ Do not change these without asking Dan/Zac first.
 1. **HQ branding** — "Lead Reload HQ" in the header (logo + **HQ badge**), page `<title>`/meta, and footer.
 2. **Hero messaging** — aged opt-ins / spend-on-workflow positioning stays.
 3. **Quantity presets** — **2,500 / 5,000 / 10,000** volume chips.
-4. **Orders are NOT capped at 1,000** — custom quantities up to **100,000**; larger/custom programs welcome.
+4. **Orders are NOT capped at 1,000** — custom quantities up to **100,000**. Copy says "Large orders welcome, up to 100,000 leads per order"; there are **no volume discounts or tiers**, so don't imply any.
 5. **Billing** — **one-time + weekly + monthly** on one cart.
-6. **Payments architecture** — **dynamic Stripe Checkout Sessions** + **Stripe Customer Portal** + **webhooks** into a thin admin. **Not** Stripe Payment Links.
+6. **Payments architecture** — **dynamic Stripe Checkout Sessions** + **Stripe Customer Portal** (currently **disabled** for security; customers reply to their receipt email or contact us to cancel/change) + **webhooks** into a thin admin. **Not** Stripe Payment Links.
+7. **Pricing** — flat unit price per lead type × age band × quantity (2026-09-25). Both lead types use 5 age bands: Under 30, 30–60, 60–90, 90–365, 365+ days.
+   - General Life / Mortgage Protection: $0.52 / $0.39 / $0.20 / $0.10 / $0.03
+   - Private Health: $0.52 / $0.33 / $0.26 / $0.13 / $0.03 (90–365 at $0.13 confirmed by Dan 2026-09-25; constant `PRIVATE_HEALTH_90_365` in `lib/pricing.js` and `public/app.js` — keep both in sync)
+   - $0.50 minimum order (Stripe). Server table `netlify/functions/lib/pricing.js` is what Stripe charges; `public/app.js` must match (`npm test`).
 
 ---
 

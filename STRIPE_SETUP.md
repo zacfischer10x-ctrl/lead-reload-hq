@@ -81,12 +81,29 @@ Stripe is charged from the price table in `netlify/functions/lib/pricing.js`, ne
 - Inputs that affect price: `leadType`, `ageBandId`, `quantity` (integer 1–100,000), `billingCadence` (`one-time` / `weekly` / `monthly`, same amount per bill).
 - `total = unit price (lead type × age band) × quantity`. No tiers, volume discounts, or state/contact surcharges.
 - The `unitPrice`, `leadTypeLabel`, `ageBandLabel` fields the storefront sends are **ignored**. Product name and metadata (`unitPrice`, `unitPriceCents`, `amountCents`, labels, `pricing: "server"`) come from the server table.
-- 400 reasons: `invalid_cart`, `invalid_quantity`, `invalid_cadence`, `invalid_states`, `invalid_lead_type`, `invalid_age_band` (e.g. `private-health` + `lm-90`), `amount_too_small` (< $0.50 Stripe minimum; the storefront blocks these first with "Minimum order is $0.50. Add more leads.").
+- 400 reasons: `invalid_cart`, `invalid_quantity`, `invalid_cadence`, `invalid_states`, `invalid_lead_type`, `invalid_age_band` (e.g. `private-health` + `lm-u30`, or a retired band id `ph-90-180` / `ph-180-360` / `lm-90`), `amount_too_small` (< $0.50 Stripe minimum; the storefront blocks these first with "Minimum order is $0.50. Add more leads.").
 - **Changing a price:** edit both `netlify/functions/lib/pricing.js` (cents) and `PRICING` in `public/app.js` (display), then run `npm test` — it fails if the storefront and server disagree for any combo/quantity.
+
+### Price table (per lead, set 2026-09-25)
+
+Same 5 age bands for every lead type. No quantity tiers or volume discounts.
+
+| Age band | General Life / Mortgage Protection | Private Health |
+|---|---|---|
+| Under 30 days | $0.52 (`lm-u30`) | $0.52 (`ph-u30`) |
+| 30–60 days | $0.39 (`lm-30-60`) | $0.33 (`ph-30-60`) |
+| 60–90 days | $0.20 (`lm-60-90`) | $0.26 (`ph-60-90`) |
+| 90–365 days | $0.10 (`lm-90-365`) | $0.13 (`ph-90-365`) |
+| 365+ days | $0.03 (`lm-365`) | $0.03 (`ph-365`) |
+
+**Private Health 90–365 ($0.13, confirmed by Dan 2026-09-25)** is one constant on each side, `PRIVATE_HEALTH_90_365`. If the price ever changes, edit these two lines to the same value (whole cents) and run `npm test`:
+
+- `netlify/functions/lib/pricing.js`: `const PRIVATE_HEALTH_90_365 = 0.13;`
+- `public/app.js`: `  const PRIVATE_HEALTH_90_365 = 0.13;`
 
 ## Customer Portal (disabled)
 
-`create-portal` used to hand a billing-portal session to anyone who knew a customer's email. It now always returns `403 portal_disabled` and nothing in the UI calls it. Until it is rebuilt, subscription changes/cancellations are handled by Dan/Zac in the Stripe Dashboard. Re-enable only behind the admin login (`lib/auth.js` `requireAdmin`) or a signed, short-lived customer token / magic link — see the comment at the top of `create-portal.js`.
+`create-portal` used to hand a billing-portal session to anyone who knew a customer's email. It now always returns `403 portal_disabled` and nothing in the UI calls it. Until it is rebuilt, subscription changes/cancellations are handled by Dan/Zac in the Stripe Dashboard: the storefront success message tells customers "To cancel or change a subscription, reply to your receipt email or contact us." For that to work, Stripe receipt emails should be on (Settings → Customer emails → Successful payments) and the Stripe public support email / reply-to should be an inbox Dan or Zac reads. Re-enable only behind the admin login (`lib/auth.js` `requireAdmin`) or a signed, short-lived customer token / magic link — see the comment at the top of `create-portal.js`.
 
 ### Storefront without Stripe
 

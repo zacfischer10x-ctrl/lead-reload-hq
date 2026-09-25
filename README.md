@@ -33,7 +33,8 @@ Without `STRIPE_SECRET_KEY`, Pay shows **Payments coming online tonight**.
 
 - **Lead Reload HQ** in header (logo + HQ badge), `<title>`, footer, meta
 - Presets keep gold volume chips **2,500 / 5,000 / 10,000**
-- Callout: buyers are **not capped at 1,000**; custom qty up to **100,000**; larger/custom welcome
+- Callout: buyers are **not capped at 1,000**; custom qty up to **100,000**; same per-lead price at any quantity (no volume discounts)
+- Age bands (both lead types): Under 30, 30–60, 60–90, 90–365, 365+ days — prices in `STRIPE_SETUP.md`
 - Hero keeps aged opt-ins / spend-on-workflow messaging
 - Billing: one-time / weekly / monthly (`billingCadence`)
 
