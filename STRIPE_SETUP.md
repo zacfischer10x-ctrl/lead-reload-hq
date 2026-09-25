@@ -81,7 +81,7 @@ Stripe is charged from the price table in `netlify/functions/lib/pricing.js`, ne
 - Inputs that affect price: `leadType`, `ageBandId`, `quantity` (integer 1–100,000), `billingCadence` (`one-time` / `weekly` / `monthly`, same amount per bill).
 - `total = unit price (lead type × age band) × quantity`. No tiers, volume discounts, or state/contact surcharges.
 - The `unitPrice`, `leadTypeLabel`, `ageBandLabel` fields the storefront sends are **ignored**. Product name and metadata (`unitPrice`, `unitPriceCents`, `amountCents`, labels, `pricing: "server"`) come from the server table.
-- 400 reasons: `invalid_cart`, `invalid_quantity`, `invalid_cadence`, `invalid_states`, `invalid_lead_type`, `invalid_age_band` (e.g. `private-health` + `lm-90`), `amount_too_small` (< $0.50 Stripe minimum).
+- 400 reasons: `invalid_cart`, `invalid_quantity`, `invalid_cadence`, `invalid_states`, `invalid_lead_type`, `invalid_age_band` (e.g. `private-health` + `lm-90`), `amount_too_small` (< $0.50 Stripe minimum; the storefront blocks these first with "Minimum order is $0.50. Add more leads.").
 - **Changing a price:** edit both `netlify/functions/lib/pricing.js` (cents) and `PRICING` in `public/app.js` (display), then run `npm test` — it fails if the storefront and server disagree for any combo/quantity.
 
 ## Customer Portal (disabled)

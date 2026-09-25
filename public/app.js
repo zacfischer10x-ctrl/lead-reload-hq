@@ -67,6 +67,9 @@
   const STORAGE_KEY = "lead-reload-draft";
   const TOTAL_STEPS = 6;
   const MAX_QTY = 100000;
+  /** Stripe's USD minimum; create-checkout rejects smaller totals. */
+  const MIN_ORDER_CENTS = 50;
+  const MIN_ORDER_MSG = "Minimum order is $0.50. Add more leads.";
   const CHECKOUT_API = "/.netlify/functions/create-checkout";
 
   const BILLING_OPTIONS = {
@@ -705,7 +708,8 @@
         setPayUiConfigured(true);
         return true;
       }
-      if (data && data.ok && data.url) {
+      // Probe reply when keys are live: { ok:true, configured:true } (no url)
+      if (data && data.ok && (data.configured === true || data.url)) {
         setPayUiConfigured(true);
         return true;
       }
@@ -741,6 +745,11 @@
 
     if (stripeReady === false) {
       showPayError("Payments coming online tonight. Checkout is temporarily paused.");
+      return;
+    }
+
+    if (Math.round(orderTotal() * 100) < MIN_ORDER_CENTS) {
+      showPayError(MIN_ORDER_MSG);
       return;
     }
 
@@ -784,8 +793,10 @@
       }
       if (!data.ok || !data.url) {
         showPayError(
-          (data && (data.message || data.reason)) ||
-            "Could not start checkout. Please try again."
+          data && data.reason === "amount_too_small"
+            ? MIN_ORDER_MSG
+            : (data && (data.message || data.reason)) ||
+                "Could not start checkout. Please try again."
         );
         btn.disabled = false;
         btn.innerHTML = prevHtml;

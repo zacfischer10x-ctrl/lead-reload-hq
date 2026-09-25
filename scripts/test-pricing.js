@@ -48,7 +48,7 @@ function loadFrontendPricing() {
   const code =
     '"use strict";\n' +
     block +
-    "\n;({ LEAD_TYPES, PRICING, BILLING_OPTIONS, MAX_QTY, state, getBands, getSelectedBand, unitPrice, orderTotal, money, formatCadenceTotal });";
+    "\n;({ LEAD_TYPES, PRICING, BILLING_OPTIONS, MAX_QTY, MIN_ORDER_CENTS, state, getBands, getSelectedBand, unitPrice, orderTotal, money, formatCadenceTotal });";
   // localStorage/document are only touched by functions we never call.
   return vm.runInNewContext(code, {}, { filename: "public/app.js#pricing-block" });
 }
@@ -68,6 +68,10 @@ check(
   "billing cadence ids differ"
 );
 check(fe.MAX_QTY === pricing.MAX_QTY, `MAX_QTY differs: ${fe.MAX_QTY} vs ${pricing.MAX_QTY}`);
+check(
+  fe.MIN_ORDER_CENTS === pricing.MIN_AMOUNT_CENTS,
+  `minimum order differs: frontend ${fe.MIN_ORDER_CENTS} vs server ${pricing.MIN_AMOUNT_CENTS}`
+);
 
 const rows = [];
 let comboCount = 0;

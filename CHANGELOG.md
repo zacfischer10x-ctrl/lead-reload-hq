@@ -4,11 +4,12 @@ Newest first. Times are ET (America/New_York). Add a dated entry after every cha
 
 ## 2026-09-25
 
-### ~3:25 PM ET — Security patches: server-side pricing, signed webhooks, portal disabled _(branch `security/server-pricing-webhook-portal`, pending Zac's merge)_
+### ~3:25 PM ET — Security patches: server-side pricing, signed webhooks, portal disabled, checkout probe fix _(branch `security/server-pricing-webhook-portal`, pending Zac's merge)_
 - **Server-side pricing (A):** `create-checkout` no longer trusts the browser's `unitPrice` (anyone could buy leads for pennies). New `netlify/functions/lib/pricing.js` holds the price table, seeded with exactly the storefront prices (General Life / Mortgage Protection: $0.52 / $0.39 / $0.20 / $0.10 / $0.03; Private Health: $0.52 / $0.33 / $0.26 / $0.13 / $0.07 / $0.03). Amount = server unit price × quantity for every cadence. Unknown lead type / age-band combos → 400. Storefront behavior unchanged; `npm test` checks all 16 combos × quantities 1–100,000 × 3 cadences match the displayed totals.
 - **Webhook (B):** `stripe-webhook` rejects instead of parsing unsigned events: no `STRIPE_WEBHOOK_SECRET` → 503 `webhook_secret_not_configured`; missing/invalid `Stripe-Signature` → 400.
 - **Portal (C):** `create-portal` disabled → 403 `portal_disabled` (it returned a billing-portal session to anyone with a customer's email). Not used by any UI. Re-enable only behind admin login or a signed customer session.
-- Added `scripts/test-pricing.js`, `scripts/test-webhook.js`, `scripts/test-portal.js` (`npm test`, no new deps). Updated `STRIPE_SETUP.md`.
+- **Storefront checkout gate (D):** fixed the Stripe probe in `public/app.js` — the server's live reply `{ok:true, configured:true}` (no `url`) was treated as "not ready", so Pay stayed on "Payments coming online tonight" even with keys set. `stripe_not_configured` still shows the offline state. Orders under $0.50 now show "Minimum order is $0.50. Add more leads." before calling checkout (and instead of the raw `amount_too_small`). No prices changed.
+- Added `scripts/test-pricing.js`, `scripts/test-webhook.js`, `scripts/test-portal.js`, `scripts/test-probe.js` (`npm test`, no new deps). Updated `STRIPE_SETUP.md`.
 - No Netlify, Stripe, or deploy changes were made; ships when Zac merges to `main`. **After merge, `STRIPE_WEBHOOK_SECRET` must be set in Netlify or all webhooks get 503.**
 
 ### ~2:25 PM ET — Repo set public for Netlify free-plan builds
