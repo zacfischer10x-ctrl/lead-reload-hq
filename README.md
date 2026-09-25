@@ -39,6 +39,6 @@ Without `STRIPE_SECRET_KEY`, Pay shows **Payments coming online tonight**.
 
 ## Deploy
 
-Deploy by pushing to `main` (Netlify continuous deployment — being connected as of 2026-09-24). Manual `netlify deploy --prod` is retired once CD is live.
+Deploy only by pushing to `main` of the private repo `zacfischer10x-ctrl/lead-reload-hq` (Netlify continuous deployment). Manual `netlify deploy --prod` is retired.
 
 Stripe keys: see `STRIPE_SETUP.md`. DNS for leadreloadhq.com: see `DEPLOY_INFO.md`.

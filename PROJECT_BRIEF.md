@@ -40,8 +40,10 @@ _Last updated: 2026-09-24 (ET)_
 
 ### Deploys
 
-- **Continuous deployment from the GitHub `main` branch.** Status as of 2026-09-24: **being connected** (repo prepared locally; GitHub link + Netlify CD not yet live).
-- Once CD is live, **manual `netlify deploy --prod` is retired.** Deploy by pushing/merging to `main`.
+- **Deploys happen only from pushes to the `main` branch of the private GitHub repo `zacfischer10x-ctrl/lead-reload-hq`** (hosted by Zac Fischer). Manual `netlify deploy --prod` is retired.
+- How the link works (set 2026-09-24): the Netlify site is pointed at that repo/branch using a Netlify **deploy key** (read-only SSH key added to the repo's Deploy keys) plus a GitHub **webhook** (`https://api.netlify.com/hooks/github`, JSON, push events). No Netlify GitHub App or team seat is needed. If the repo is renamed or moved, update the site's repo settings in Netlify to match.
+- Status as of 2026-09-24 evening: Netlify side configured; waiting for Zac to create the repo, push, and add the deploy key + webhook. Until the first repo-triggered deploy succeeds, the live site stays on the last manual deploy.
+- Environment variables stay in Netlify (site `lead-reload-hq`) and are not affected by the repo link.
 
 ### DNS (GoDaddy)
 
@@ -133,7 +135,7 @@ Values live **only in Netlify env vars** for site `lead-reload-hq` — never in 
   - `customer.subscription.deleted`
   - `invoice.paid`
 - [x] **(c)** `SITE_URL = https://leadreloadhq.com` — **DONE 2026-09-24**.
-- [ ] Connect GitHub repo + Netlify continuous deployment from `main` (in progress 2026-09-24).
+- [ ] Zac creates private repo `zacfischer10x-ctrl/lead-reload-hq`, pushes this code, adds the Netlify deploy key + webhook, then confirms a push to `main` produces a successful production deploy (Netlify side already linked 2026-09-24).
 
 ---
 
@@ -143,4 +145,4 @@ Values live **only in Netlify env vars** for site `lead-reload-hq` — never in 
 2. **Add a dated entry to `CHANGELOG.md`** after every change.
 3. **Secrets only in Netlify env vars** — never commit keys, passwords, tokens, or `.env` files.
 4. **Ask Dan/Zac first** before any change to **payments, pricing, or admin access**.
-5. **Deploy by pushing to `main`** — no manual production deploys once CD is live.
+5. **Deploy only by pushing to `main`** of `zacfischer10x-ctrl/lead-reload-hq` — no manual production deploys.

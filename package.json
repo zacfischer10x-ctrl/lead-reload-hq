@@ -2,11 +2,10 @@
   "name": "lead-reload-hq",
   "version": "1.0.0",
   "private": true,
-  "description": "Lead Reload HQ — B2B aged opt-in lead marketplace with Stripe checkout",
+  "description": "Lead Reload HQ \u2014 B2B aged opt-in lead marketplace with Stripe checkout",
   "scripts": {
     "dev": "netlify dev",
-    "build": "echo 'Static site — no build step'",
-    "deploy": "netlify deploy --prod"
+    "build": "echo 'Static site \u2014 no build step'"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",

@@ -7,7 +7,9 @@ Newest first. Times are ET (America/New_York). Add a dated entry after every cha
 ### Evening ET — Repo + continuous deployment _(in progress)_
 - Prepared source as a git repo (branch `main`); secret-scanned tracked files (no secrets found; `.env` / `node_modules/` / `.netlify/` ignored).
 - Added `PROJECT_BRIEF.md` (read first) and this `CHANGELOG.md`; README points to the brief.
-- Next: push to GitHub and connect Netlify continuous deployment from `main`. Manual `netlify deploy --prod` retires once CD is live.
+- Change of plan: Zac hosts the private repo at `zacfischer10x-ctrl/lead-reload-hq` (Dan doesn't use GitHub). The Netlify team is on the free plan (1 seat), so instead of adding Zac to the team, the site was linked from Dan's Netlify side via a deploy key + GitHub webhook (`main`, publish `public`, functions `netlify/functions`, build `npm install`). One expected failed build was logged at link time because the repo didn't exist yet; the live site was unaffected.
+- Removed the `npm run deploy` (`netlify deploy --prod`) script and updated `STRIPE_SETUP.md` so docs no longer point to manual production deploys or the netlify.app address.
+- Next: Zac creates the repo, pushes, adds the deploy key + webhook, and confirms a push deploys to production.
 
 ### ~4:00 PM ET — SITE_URL switched to custom domain
 - Set Netlify env `SITE_URL=https://leadreloadhq.com` and redeployed.

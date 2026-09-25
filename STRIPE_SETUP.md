@@ -14,7 +14,7 @@ Never commit real keys. Redeploy after changing secrets so functions reload them
 | `ADMIN_ZAC_PASSWORD` | long random string | Yes for `/admin/` | Invite-only login for username `zac` |
 | `ADMIN_PASSWORD` | long random string | Optional legacy | Shared password that still logs in as `dan` |
 | `ADMIN_SESSION_SECRET` | long random hex | Recommended | Signs `lr_admin_session` cookie |
-| `SITE_URL` | `https://lead-reload-hq.netlify.app` | Recommended | Success/cancel + portal return base |
+| `SITE_URL` | `https://leadreloadhq.com` | Recommended | Success/cancel + portal return base |
 
 ### CLI (from `/workspace/lead-reload-hq`)
 
@@ -24,8 +24,8 @@ netlify env:set STRIPE_WEBHOOK_SECRET "whsec_…"
 netlify env:set STRIPE_PUBLISHABLE_KEY "pk_…"
 netlify env:set ADMIN_DAN_PASSWORD "…"
 netlify env:set ADMIN_ZAC_PASSWORD "…"
-# then:
-netlify deploy --prod
+# then trigger a redeploy (Netlify UI "Trigger deploy" or push to main) so functions reload env vars.
+# Do not run `netlify deploy --prod`; deploys come from the GitHub repo.
 ```
 
 ## Admin access (invite-only)
@@ -35,12 +35,6 @@ netlify deploy --prod
 - Session cookie stores the logged-in username; admin UI shows “Signed in as …”
 
 ## Webhook URL pattern
-
-```
-https://lead-reload-hq.netlify.app/.netlify/functions/stripe-webhook
-```
-
-After custom domain HTTPS is live:
 
 ```
 https://leadreloadhq.com/.netlify/functions/stripe-webhook
