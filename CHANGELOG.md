@@ -2,6 +2,13 @@
 
 Newest first. Times are ET (America/New_York). Add a dated entry after every change.
 
+## 2026-09-25
+
+### ~10:40 AM ET — GitHub deploy key + webhook + first auto-deploy test
+- Added Netlify deploy key on `zacfischer10x-ctrl/lead-reload-hq` (title **Netlify**, read-only).
+- Push webhook to `https://api.netlify.com/hooks/github` already present from 2026-09-24.
+- This CHANGELOG entry is the first push-to-`main` test so Netlify can pull via the deploy key and publish production.
+
 ## 2026-09-24
 
 ### Evening ET — Repo + continuous deployment _(in progress)_
