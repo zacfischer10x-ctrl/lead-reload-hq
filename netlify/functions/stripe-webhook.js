@@ -4,33 +4,50 @@ const { getStripe, stripeConfigured } = require("./lib/stripe-client");
 const { ordersStore, subsStore, setJson } = require("./lib/blobs");
 const { text } = require("./lib/http");
 
+/**
+ * Exact bytes Stripe signed. Keep base64 bodies as a Buffer so signature
+ * verification sees the original payload.
+ */
 function rawBody(event) {
   if (!event.body) return "";
   return event.isBase64Encoded
-    ? Buffer.from(event.body, "base64").toString("utf8")
+    ? Buffer.from(event.body, "base64")
     : event.body;
+}
+
+function header(event, name) {
+  const headers = event.headers || {};
+  const want = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === want) return headers[key];
+  }
+  return undefined;
 }
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return text(405, "method_not_allowed");
+
+  // Never process unverified events. Without the signing secret we cannot
+  // verify anything, so refuse outright (Stripe will retry once it is set).
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error("stripe-webhook: STRIPE_WEBHOOK_SECRET not set — rejecting event");
+    return text(503, "webhook_secret_not_configured");
+  }
   if (!stripeConfigured()) return text(503, "stripe_not_configured");
 
-  const stripe = getStripe();
-  const sig =
-    event.headers["stripe-signature"] || event.headers["Stripe-Signature"];
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const sig = header(event, "stripe-signature");
+  if (!sig) {
+    return text(400, "missing_signature");
+  }
 
+  const stripe = getStripe();
   let stripeEvent;
   try {
-    if (secret && sig) {
-      stripeEvent = stripe.webhooks.constructEvent(rawBody(event), sig, secret);
-    } else {
-      stripeEvent = JSON.parse(rawBody(event));
-      console.warn("stripe-webhook: STRIPE_WEBHOOK_SECRET missing — unverified parse");
-    }
+    stripeEvent = stripe.webhooks.constructEvent(rawBody(event), sig, secret);
   } catch (err) {
-    console.error("webhook signature failed", err.message);
-    return text(400, `Webhook Error: ${err.message}`);
+    console.error("stripe-webhook: signature verification failed:", err.message);
+    return text(400, "invalid_signature");
   }
 
   try {
