@@ -69,20 +69,25 @@ public/                     Static storefront (publish dir)
   styles.css, lead-reload-logo.png
   admin/                    Thin invite-only admin UI (index.html, admin.js, admin.css)
 netlify/functions/          Serverless functions
-  create-checkout.js        Builds a dynamic Stripe Checkout Session with price_data.
+  create-checkout.js        Builds a dynamic Stripe Checkout Session with price_data, priced
+                            server-side from lib/pricing.js (client unitPrice is ignored).
                             one-time → payment mode; weekly/monthly → subscription (recurring).
                             Order details go in metadata. With no Stripe key it returns
                             {ok:false, reason:'stripe_not_configured'} and the Pay button shows
                             "Payments coming online tonight".
-  stripe-webhook.js         Verifies Stripe signature; stores orders/subscriptions in Netlify Blobs.
-  create-portal.js          Creates a Stripe Customer Portal session.
+  stripe-webhook.js         Verifies Stripe signature (required; no secret → 503, bad/missing
+                            signature → 400); stores orders/subscriptions in Netlify Blobs.
+  create-portal.js          DISABLED 2026-09-25 (403 portal_disabled) until it sits behind
+                            admin login or a signed customer session.
   admin-login.js            Username + password login → sets lr_admin_session cookie.
   admin-logout.js           Clears the session cookie.
   admin-orders.js           Lists orders (admin only).
   admin-subscriptions.js    Lists subscriptions (admin only).
   admin-fulfill.js          Marks an order fulfilled (admin only).
   lib/                      Shared helpers: auth.js (sessions/allowlist), blobs.js,
-                            http.js (JSON/CORS/SITE_URL), stripe-client.js
+                            http.js (JSON/CORS/SITE_URL), stripe-client.js,
+                            pricing.js (server-side price table — must match public/app.js)
+scripts/                    test-pricing.js, test-webhook.js, test-portal.js (`npm test`, no deps)
 netlify.toml                Build settings, /api/* → functions redirect, /admin redirect, security headers
 package.json                Deps: stripe, @netlify/blobs, cookie
 .env.example                Placeholder env var names only (real values live in Netlify)
