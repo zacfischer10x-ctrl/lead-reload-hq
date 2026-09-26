@@ -111,3 +111,4 @@ code { font-size: .85em; color: var(--gold-200); }
 }
 .signed-in::before { content: "Signed in as "; color: var(--text-muted); font-weight: 500; }
 
+.muted.small { font-size: .82rem; margin-top: .9rem; }

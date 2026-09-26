@@ -1,44 +1,36 @@
 "use strict";
 
-const { json, options, parseBody, siteUrl } = require("./lib/http");
-const { getStripe, stripeConfigured } = require("./lib/stripe-client");
+/**
+ * create-portal — DISABLED (2026-09-25).
+ *
+ * The previous version returned a Stripe Customer Portal session URL to anyone
+ * who POSTed a customer's email address (or Stripe customer id). A portal
+ * session lets the holder see invoices, change payment methods, and cancel
+ * subscriptions, so that was an account-takeover hole. Nothing in the
+ * storefront or admin UI calls this function, so it now always refuses.
+ *
+ * The file is kept so the function name/URL stays reserved
+ * (/.netlify/functions/create-portal and /api/create-portal).
+ *
+ * To re-enable safely later, only mint a portal session for a customer the
+ * caller has PROVEN they are, never from an email/customerId in the request:
+ *   1. Admin-only: require a Netlify Identity admin (see lib/auth.js)
+ *        exports.handler = async (event, context) => { ...
+ *        const { requireAdmin } = require("./lib/auth");
+ *        const auth = requireAdmin(event, context);
+ *        if (!auth.ok) return json(auth.statusCode, { ok: false, reason: auth.error });
+ *      then look up the Stripe customer id from our own stored order/sub record.
+ *   2. Customer self-serve: email the customer a one-time magic link (or use
+ *      Stripe's hosted customer-portal login link, configured in the Stripe
+ *      Dashboard), and here accept only a short-lived HMAC-signed token that
+ *      carries the Stripe customer id — never a raw email or customer id.
+ *   Then call stripe.billingPortal.sessions.create({ customer, return_url })
+ *   with return_url built from SITE_URL, and add tests for the auth check.
+ */
+
+const { json, options } = require("./lib/http");
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return options();
-  if (event.httpMethod !== "POST") {
-    return json(405, { ok: false, reason: "method_not_allowed" });
-  }
-  if (!stripeConfigured()) {
-    return json(200, { ok: false, reason: "stripe_not_configured" });
-  }
-
-  const { customerId, email } = parseBody(event);
-  const stripe = getStripe();
-  const origin = siteUrl(event);
-
-  try {
-    let custId = customerId;
-    if (!custId && email) {
-      const list = await stripe.customers.list({
-        email: String(email).trim(),
-        limit: 1,
-      });
-      if (list.data[0]) custId = list.data[0].id;
-    }
-    if (!custId) {
-      return json(400, { ok: false, reason: "customer_not_found" });
-    }
-    const session = await stripe.billingPortal.sessions.create({
-      customer: custId,
-      return_url: `${origin}/`,
-    });
-    return json(200, { ok: true, url: session.url });
-  } catch (err) {
-    console.error("create-portal", err);
-    return json(500, {
-      ok: false,
-      reason: "stripe_error",
-      message: err.message,
-    });
-  }
+  return json(403, { ok: false, reason: "portal_disabled" });
 };

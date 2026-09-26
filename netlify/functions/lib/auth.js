@@ -1,157 +1,65 @@
 "use strict";
 
-const crypto = require("crypto");
-const { parse: parseCookie, serialize } = require("cookie");
+/**
+ * Admin auth for /admin/ and the admin-* functions: Netlify Identity.
+ *
+ * The browser (Identity widget on /admin/) sends
+ *   Authorization: Bearer <Identity JWT>
+ * Netlify verifies that JWT before the function runs and puts the decoded
+ * user on context.clientContext.user. A missing, forged or expired token
+ * means there is no user there.
+ *
+ *   no Identity user                      -> 401 unauthorized
+ *   user whose email is not in the list   -> 403 forbidden
+ *   user whose email is in ADMIN_EMAILS   -> allowed
+ *
+ * The email allowlist is the gate on its own; no Identity role is needed.
+ * An app_metadata role such as "admin" does NOT let anyone else in. That
+ * keeps admin to exactly these two people even if someone else is ever
+ * invited or given a role by mistake. Identity registration is invite-only.
+ *
+ * To add or remove an admin: edit ADMIN_EMAILS (lowercase), run npm test,
+ * merge, and invite/remove the Identity user in the Netlify UI.
+ */
+const ADMIN_EMAILS = Object.freeze([
+  "dwhigham94@gmail.com", // Dan
+  "zacfischer10x@gmail.com", // Zac
+]);
 
-const COOKIE_NAME = "lr_admin_session";
-const MAX_AGE_SEC = 60 * 60 * 24 * 7;
-const ALLOWED_USERS = new Set(["dan", "zac"]);
-
-function sessionSecret() {
-  return (
-    process.env.ADMIN_SESSION_SECRET ||
-    crypto
-      .createHash("sha256")
-      .update(
-        "lr-admin|" +
-          (process.env.ADMIN_DAN_PASSWORD ||
-            process.env.ADMIN_PASSWORD ||
-            "unset")
-      )
-      .digest("hex")
-  );
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
 }
 
-function sign(payload) {
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const sig = crypto
-    .createHmac("sha256", sessionSecret())
-    .update(body)
-    .digest("base64url");
-  return `${body}.${sig}`;
+function isAllowedEmail(email) {
+  const e = normalizeEmail(email);
+  return e !== "" && ADMIN_EMAILS.includes(e);
 }
 
-function verify(token) {
-  if (!token || typeof token !== "string" || !token.includes(".")) return null;
-  const [body, sig] = token.split(".");
-  const expected = crypto
-    .createHmac("sha256", sessionSecret())
-    .update(body)
-    .digest("base64url");
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
-    if (!payload || payload.exp < Date.now()) return null;
-    if (!payload.user || !ALLOWED_USERS.has(String(payload.user).toLowerCase())) {
-      return null;
-    }
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-function safeEqual(provided, expected) {
-  if (!expected) return false;
-  const a = Buffer.from(String(provided || ""));
-  const b = Buffer.from(String(expected));
-  if (a.length !== b.length) {
-    crypto.timingSafeEqual(Buffer.alloc(b.length), b);
-    return false;
-  }
-  return crypto.timingSafeEqual(a, b);
-}
-
-function adminConfigured() {
-  return Boolean(
-    process.env.ADMIN_DAN_PASSWORD ||
-      process.env.ADMIN_ZAC_PASSWORD ||
-      process.env.ADMIN_PASSWORD
-  );
+function identityUser(context) {
+  const user = context && context.clientContext && context.clientContext.user;
+  return user && typeof user === "object" ? user : null;
 }
 
 /**
- * Invite-only: usernames dan | zac (case-insensitive).
- * Passwords from ADMIN_DAN_PASSWORD / ADMIN_ZAC_PASSWORD.
- * Legacy ADMIN_PASSWORD still authenticates as dan.
+ * @returns {{ok:true, user:{email:string, sub:string|null}}
+ *          |{ok:false, statusCode:401|403, error:string}}
  */
-function authenticateUser(username, password) {
-  const user = String(username || "")
-    .trim()
-    .toLowerCase();
-  if (!ALLOWED_USERS.has(user)) return null;
-
-  if (user === "dan") {
-    if (safeEqual(password, process.env.ADMIN_DAN_PASSWORD)) return "dan";
-    // Transition fallback — shared legacy password maps to dan
-    if (safeEqual(password, process.env.ADMIN_PASSWORD)) return "dan";
-    return null;
+function requireAdmin(event, context) {
+  const user = identityUser(context);
+  if (!user) return { ok: false, statusCode: 401, error: "unauthorized" };
+  if (!isAllowedEmail(user.email)) {
+    return { ok: false, statusCode: 403, error: "forbidden" };
   }
-  if (user === "zac") {
-    if (safeEqual(password, process.env.ADMIN_ZAC_PASSWORD)) return "zac";
-    return null;
-  }
-  return null;
-}
-
-function createSessionCookie(username) {
-  const user = String(username || "")
-    .trim()
-    .toLowerCase();
-  if (!ALLOWED_USERS.has(user)) {
-    throw new Error("invalid_admin_user");
-  }
-  const token = sign({
-    role: "admin",
-    user,
-    exp: Date.now() + MAX_AGE_SEC * 1000,
-  });
-  return serialize(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: MAX_AGE_SEC,
-  });
-}
-
-function clearSessionCookie() {
-  return serialize(COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
-}
-
-function getSession(event) {
-  const raw = event.headers.cookie || event.headers.Cookie || "";
-  const cookies = parseCookie(raw);
-  return verify(cookies[COOKIE_NAME]);
-}
-
-function requireAdmin(event) {
-  const session = getSession(event);
-  if (!session) return { ok: false, statusCode: 401, error: "unauthorized" };
-  return { ok: true, session };
-}
-
-// Legacy helper kept for any callers; prefer authenticateUser
-function checkPassword(password) {
-  return Boolean(authenticateUser("dan", password));
+  return {
+    ok: true,
+    user: { email: normalizeEmail(user.email), sub: user.sub || null },
+  };
 }
 
 module.exports = {
-  COOKIE_NAME,
-  ALLOWED_USERS,
-  createSessionCookie,
-  clearSessionCookie,
-  getSession,
+  ADMIN_EMAILS,
+  normalizeEmail,
+  isAllowedEmail,
+  identityUser,
   requireAdmin,
-  authenticateUser,
-  adminConfigured,
-  checkPassword,
 };

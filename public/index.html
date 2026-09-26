@@ -12,6 +12,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=20260924hq" />
+  <!-- Sends Netlify Identity invite/recovery links that land here to /admin/ -->
+  <script src="identity-redirect.js?v=20260926id"></script>
 </head>
 <body>
   <div class="bg-glow" aria-hidden="true"></div>
@@ -45,7 +47,7 @@
     <section class="hero">
       <p class="eyebrow">Lead Reload HQ · Insurance lead marketplace</p>
       <h1>Order exclusive leads</h1>
-      <p class="hero-sub">Choose your lead type, age band, quantity, and states — then check out securely. Volume buyers welcome.</p>
+      <p class="hero-sub">Choose your lead type, age band, quantity, and states — then check out securely. Large orders welcome, up to 100,000 leads per order.</p>
       <aside class="value-callout" aria-label="How aged opt-ins convert">
         <p class="value-callout-kicker">Sales floor truth</p>
         <h2 class="value-callout-title">Aged opt-ins that convert</h2>
@@ -129,7 +131,7 @@
           </div>
           <p class="qty-volume-callout" id="qty-volume-callout" role="note">
             <strong>Not capped at 1,000.</strong> Buyers routinely order 2,500 / 5,000 / 10,000+.
-            Type any custom quantity up to <strong>100,000</strong> — larger or multi-state programs welcome; we will confirm delivery windows.
+            Type any custom quantity up to <strong>100,000</strong> — same per-lead price at any quantity; for large or multi-state orders we will confirm delivery windows.
           </p>
           <p class="qty-custom-hint" id="qty-custom-hint">Custom quantity: use the field above (or ±) — presets are shortcuts only.</p>
           <p class="qty-hint">Unit price: <strong id="qty-unit-price">—</strong> · Est. total: <strong id="qty-est-total">—</strong></p>
@@ -263,7 +265,7 @@
           <div class="success-panel hidden" id="success-panel">
             <div class="success-icon" aria-hidden="true">✓</div>
             <h3>Checkout started</h3>
-            <p id="success-copy">If you just completed Stripe Checkout, thank you — fulfillment will follow your state and age-band selection. Subscriptions renew until canceled.</p>
+            <p id="success-copy">If you just completed Stripe Checkout, thank you — fulfillment will follow your state and age-band selection. Subscriptions renew until canceled. To cancel or change a subscription, reply to your receipt email or contact us.</p>
             <dl class="review-summary" id="success-summary"></dl>
             <p class="order-id">Reference: <code id="order-id"></code></p>
 
@@ -302,10 +304,10 @@
   <footer class="site-footer">
     <div class="container footer-inner">
       <p>© Lead Reload HQ · Premium aged opt-in marketplace</p>
-      <p class="admin-note"><a href="/admin/">Admin</a> · Volume &amp; custom programs welcome</p>
+      <p class="admin-note"><a href="/admin/">Admin</a> · Large orders welcome, up to 100,000 leads per order</p>
     </div>
   </footer>
 
-  <script src="app.js?v=20260924hq"></script>
+  <script src="app.js?v=20260925hq"></script>
 </body>
 </html>

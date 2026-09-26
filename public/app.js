@@ -1,6 +1,6 @@
 /**
  * Lead Reload HQ — lead order wizard + Stripe Checkout
- * Customer prices = wholesale × 1.30, rounded to nearest cent (see README).
+ * Customer prices per lead: see PRICING below (set by Dan 2026-09-25).
  */
 
 (function () {
@@ -24,21 +24,33 @@
     },
   };
 
-  /** Customer-facing unit prices (already wholesale × 1.30, rounded) */
+  /**
+   * Private Health, 90–365 days, dollars per lead.
+   * Confirmed by Dan 2026-09-25 ($0.13); keep both values in sync.
+   * Must equal PRIVATE_HEALTH_90_365 in netlify/functions/lib/pricing.js;
+   * `npm run test:pricing` fails if the two differ.
+   */
+  const PRIVATE_HEALTH_90_365 = 0.13;
+
+  /**
+   * Customer-facing unit prices per lead. Same 5 age bands for both tables.
+   * DISPLAY ONLY — Stripe charges the server-side table in
+   * netlify/functions/lib/pricing.js (the unitPrice sent at checkout is
+   * ignored). Keep both in sync; `npm run test:pricing` fails if they differ.
+   */
   const PRICING = {
     privateHealth: [
       { id: "ph-u30", label: "Under 30 days", price: 0.52 },
       { id: "ph-30-60", label: "30–60 days", price: 0.33 },
       { id: "ph-60-90", label: "60–90 days", price: 0.26 },
-      { id: "ph-90-180", label: "90–180 days", price: 0.13 },
-      { id: "ph-180-360", label: "180–360 days", price: 0.07 },
+      { id: "ph-90-365", label: "90–365 days", price: PRIVATE_HEALTH_90_365 },
       { id: "ph-365", label: "365+ days", price: 0.03 },
     ],
     lifeMp: [
       { id: "lm-u30", label: "Under 30 days", price: 0.52 },
       { id: "lm-30-60", label: "30–60 days", price: 0.39 },
       { id: "lm-60-90", label: "60–90 days", price: 0.2 },
-      { id: "lm-90", label: "90+ days", price: 0.1 },
+      { id: "lm-90-365", label: "90–365 days", price: 0.1 },
       { id: "lm-365", label: "365+ days", price: 0.03 },
     ],
   };
@@ -62,7 +74,13 @@
   const STORAGE_KEY = "lead-reload-draft";
   const TOTAL_STEPS = 6;
   const MAX_QTY = 100000;
+  /** Stripe's USD minimum; create-checkout rejects smaller totals. */
+  const MIN_ORDER_CENTS = 50;
+  const MIN_ORDER_MSG = "Minimum order is $0.50. Add more leads.";
   const CHECKOUT_API = "/.netlify/functions/create-checkout";
+  /** Customer portal is disabled; subscription changes go through us. */
+  const SUBSCRIPTION_HELP =
+    "To cancel or change a subscription, reply to your receipt email or contact us.";
 
   const BILLING_OPTIONS = {
     "one-time": { id: "one-time", label: "One-time", short: "one-time", suffix: "" },
@@ -700,7 +718,8 @@
         setPayUiConfigured(true);
         return true;
       }
-      if (data && data.ok && data.url) {
+      // Probe reply when keys are live: { ok:true, configured:true } (no url)
+      if (data && data.ok && (data.configured === true || data.url)) {
         setPayUiConfigured(true);
         return true;
       }
@@ -736,6 +755,11 @@
 
     if (stripeReady === false) {
       showPayError("Payments coming online tonight. Checkout is temporarily paused.");
+      return;
+    }
+
+    if (Math.round(orderTotal() * 100) < MIN_ORDER_CENTS) {
+      showPayError(MIN_ORDER_MSG);
       return;
     }
 
@@ -779,8 +803,10 @@
       }
       if (!data.ok || !data.url) {
         showPayError(
-          (data && (data.message || data.reason)) ||
-            "Could not start checkout. Please try again."
+          data && data.reason === "amount_too_small"
+            ? MIN_ORDER_MSG
+            : (data && (data.message || data.reason)) ||
+                "Could not start checkout. Please try again."
         );
         btn.disabled = false;
         btn.innerHTML = prevHtml;
@@ -820,7 +846,8 @@
       const copy = document.getElementById("success-copy");
       if (copy) {
         copy.textContent =
-          "Thank you — Stripe confirmed your checkout. Fulfillment follows your state and age-band selection. Subscriptions renew until canceled in the customer portal.";
+          "Thank you — Stripe confirmed your checkout. Fulfillment follows your state and age-band selection. Subscriptions renew until canceled. " +
+          SUBSCRIPTION_HELP;
       }
       clearDraft();
       showStep(6);
@@ -1061,10 +1088,13 @@
     probeStripeConfigured();
     handleReturnFromStripe();
 
-    // If draft had invalid age for type, clear it
+    // If draft had invalid age for type (e.g. a retired band id such as
+    // ph-90-180 / lm-90 from a cart saved before 2026-09-25), clear it and
+    // send the buyer back to the Age step to pick a current band.
     if (state.leadType && state.ageBandId) {
       if (!getBands().some((b) => b.id === state.ageBandId)) {
         state.ageBandId = null;
+        if (state.step > 2) state.step = 2;
       }
     }
 

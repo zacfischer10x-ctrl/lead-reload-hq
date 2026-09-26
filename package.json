@@ -5,11 +5,16 @@
   "description": "Lead Reload HQ \u2014 B2B aged opt-in lead marketplace with Stripe checkout",
   "scripts": {
     "dev": "netlify dev",
-    "build": "echo 'Static site \u2014 no build step'"
+    "build": "echo 'Static site \u2014 no build step'",
+    "test": "node scripts/test-pricing.js && node scripts/test-webhook.js && node scripts/test-portal.js && node scripts/test-probe.js && node scripts/test-admin-auth.js",
+    "test:pricing": "node scripts/test-pricing.js",
+    "test:webhook": "node scripts/test-webhook.js",
+    "test:portal": "node scripts/test-portal.js",
+    "test:probe": "node scripts/test-probe.js",
+    "test:admin": "node scripts/test-admin-auth.js"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
-    "cookie": "^0.7.2",
     "stripe": "^17.7.0"
   },
   "engines": {
