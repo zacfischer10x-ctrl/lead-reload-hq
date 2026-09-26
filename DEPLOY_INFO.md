@@ -2,6 +2,8 @@
 
 **Updated:** Thu Sep 24, 2026 (America/New_York)
 
+> **Admin auth changed 2026-09-26:** `/admin/` now uses Netlify Identity (allowlisted emails `dwhigham94@gmail.com`, `zacfischer10x@gmail.com`). The `ADMIN_*` password env vars and username/password login below are retired. See `PROJECT_BRIEF.md`.
+>
 > **Historical snapshot (pre-DNS).** Since this was written, `leadreloadhq.com` DNS + Let's Encrypt SSL went live, Force HTTPS is on, and `SITE_URL` is now `https://leadreloadhq.com`. See `PROJECT_BRIEF.md` for current state.
 
 | Field | Value |

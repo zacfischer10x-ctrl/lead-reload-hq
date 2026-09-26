@@ -14,9 +14,10 @@
  *
  * To re-enable safely later, only mint a portal session for a customer the
  * caller has PROVEN they are, never from an email/customerId in the request:
- *   1. Admin-only: require a valid admin session
+ *   1. Admin-only: require a Netlify Identity admin (see lib/auth.js)
+ *        exports.handler = async (event, context) => { ...
  *        const { requireAdmin } = require("./lib/auth");
- *        const auth = requireAdmin(event);
+ *        const auth = requireAdmin(event, context);
  *        if (!auth.ok) return json(auth.statusCode, { ok: false, reason: auth.error });
  *      then look up the Stripe customer id from our own stored order/sub record.
  *   2. Customer self-serve: email the customer a one-time magic link (or use

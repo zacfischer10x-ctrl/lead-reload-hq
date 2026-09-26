@@ -2,6 +2,17 @@
 
 Newest first. Times are ET (America/New_York). Add a dated entry after every change.
 
+## 2026-09-26
+
+### ~11:35 AM ET — Admin sign-in moved to Netlify Identity; shared password gate removed _(same branch, patch 7/7, pending Zac's merge; approved by Dan)_
+- **`/admin/` now signs in with Netlify Identity** (the Identity widget, same pattern as dwhigham.com). Registration is invite-only; each admin sets their own password from the invite email, and "Forgot password?" sends a reset email.
+- **Allowlist:** `ADMIN_EMAILS` in `netlify/functions/lib/auth.js` = `dwhigham94@gmail.com` (Dan), `zacfischer10x@gmail.com` (Zac), compared lowercase. The email list is the whole gate: no Identity role needed, and an `admin` role alone does not let anyone else in.
+- **Every admin function** (`admin-orders`, `admin-subscriptions`, `admin-fulfill`, new `admin-me`) reads the Identity user from `context.clientContext.user` (Netlify verifies the `Authorization: Bearer` JWT): no user → **401** `unauthorized`, other email → **403** `forbidden`, both before touching storage. Admin responses are `Cache-Control: no-store`, `Vary: Authorization`.
+- **Invite / recovery / confirmation links** (`/#invite_token=…`, `#recovery_token=`, `#confirmation_token=`, `#email_change_token=`) that land on the site root are forwarded to `/admin/` by new `public/identity-redirect.js`; the widget on `/admin/` shows the set-password screen, then the admin. A signed-in non-admin sees "No admin access" with a Sign out button.
+- **Removed:** `admin-login` and `admin-logout` functions, the username/password form, the `lr_admin_session` cookie, and all reads of `ADMIN_DAN_PASSWORD`, `ADMIN_ZAC_PASSWORD`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`. Dropped the now-unused `cookie` dependency. Old cookies are ignored (401).
+- **Tests:** new `scripts/test-admin-auth.js` in `npm test`: each admin function → 401 with no user (storage untouched), 403 for other/look-alike emails and for a non-allowlisted user with an `admin` role, 200 for both allowed emails (any case); no password-gate references left in `public/` or `netlify/functions/`; root → `/admin/` forwarding for all four token types.
+- **Netlify:** Identity must be enabled on `lead-reload-hq` (invite-only, external providers off) before merge. Invites go out only after this is live. After both admins sign in, delete the four retired `ADMIN_*` env vars.
+
 ## 2026-09-25
 
 ### ~3:55 PM ET — Pricing update: 5 age bands for both lead types, new prices, no-discount wording, portal copy removed _(same branch, patch 6/6, pending Zac's merge)_

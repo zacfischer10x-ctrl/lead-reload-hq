@@ -7,7 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=20260924hq2" />
+  <link rel="stylesheet" href="admin.css?v=20260926id" />
+  <!-- Netlify Identity: sign-in, invite accept (set password), password reset -->
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
 <body>
   <div class="bg-glow" aria-hidden="true"></div>
@@ -26,18 +28,17 @@
 
   <main class="wrap">
     <section id="login-panel" class="card login-card">
-      <h1>Admin login</h1>
-      <p class="muted">Invite-only access for Lead Reload HQ operators (<strong>dan</strong> / <strong>zac</strong>). No public signup. Passwords are set in Netlify env (<code>ADMIN_DAN_PASSWORD</code> / <code>ADMIN_ZAC_PASSWORD</code>).</p>
-      <label class="field">
-        <span>Username</span>
-        <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="dan or zac" />
-      </label>
-      <label class="field">
-        <span>Password</span>
-        <input type="password" id="password" name="password" autocomplete="current-password" />
-      </label>
+      <h1>Admin sign in</h1>
+      <p class="muted">Invite-only access for Lead Reload HQ operators. Sign in with the email address your Netlify Identity invite was sent to. There is no public signup.</p>
       <p class="error hidden" id="login-error" role="alert"></p>
       <button type="button" class="btn primary" id="login-btn">Sign in</button>
+      <p class="muted small">Forgot your password? Click <strong>Sign in</strong>, then <strong>Forgot password?</strong></p>
+    </section>
+
+    <section id="denied-panel" class="card login-card hidden">
+      <h1>No admin access</h1>
+      <p class="muted">You are signed in as <strong id="denied-email"></strong>, but that account is not on the Lead Reload HQ admin list.</p>
+      <button type="button" class="btn primary" id="denied-logout-btn">Sign out</button>
     </section>
 
     <section id="dash-panel" class="hidden">
@@ -71,6 +72,6 @@
     </section>
   </main>
 
-  <script src="admin.js?v=20260924hq2"></script>
+  <script src="admin.js?v=20260926id"></script>
 </body>
 </html>

@@ -10,10 +10,6 @@ Never commit real keys. Redeploy after changing secrets so functions reload them
 | `STRIPE_SECRET_KEY` | `sk_test_…` / `sk_live_…` | Yes for pay | Server Stripe SDK (`create-checkout`, webhook) |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_…` | **Yes — webhook refuses all events without it** | Signature check on `stripe-webhook` (missing → `503 webhook_secret_not_configured`) |
 | `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` / `pk_live_…` | Optional | Reserved; Checkout is hosted |
-| `ADMIN_DAN_PASSWORD` | long random string | Yes for `/admin/` | Invite-only login for username `dan` |
-| `ADMIN_ZAC_PASSWORD` | long random string | Yes for `/admin/` | Invite-only login for username `zac` |
-| `ADMIN_PASSWORD` | long random string | Optional legacy | Shared password that still logs in as `dan` |
-| `ADMIN_SESSION_SECRET` | long random hex | Recommended | Signs `lr_admin_session` cookie |
 | `SITE_URL` | `https://leadreloadhq.com` | Recommended | Success/cancel URL base (and portal return base if the portal is re-enabled) |
 
 ### CLI (from `/workspace/lead-reload-hq`)
@@ -22,17 +18,16 @@ Never commit real keys. Redeploy after changing secrets so functions reload them
 netlify env:set STRIPE_SECRET_KEY "sk_…"
 netlify env:set STRIPE_WEBHOOK_SECRET "whsec_…"
 netlify env:set STRIPE_PUBLISHABLE_KEY "pk_…"
-netlify env:set ADMIN_DAN_PASSWORD "…"
-netlify env:set ADMIN_ZAC_PASSWORD "…"
 # then trigger a redeploy (Netlify UI "Trigger deploy" or push to main) so functions reload env vars.
 # Do not run `netlify deploy --prod`; deploys come from the GitHub repo.
 ```
 
 ## Admin access (invite-only)
 
-- Allowlisted usernames: **`dan`**, **`zac`** (case-insensitive)
-- No public signup
-- Session cookie stores the logged-in username; admin UI shows “Signed in as …”
+- `/admin/` uses **Netlify Identity** (invite-only registration, no external providers). No admin env vars.
+- Allowlisted emails, in `ADMIN_EMAILS` in `netlify/functions/lib/auth.js`: **`dwhigham94@gmail.com`**, **`zacfischer10x@gmail.com`** (case-insensitive)
+- Admin functions: no Identity user → 401, other email → 403
+- The old `ADMIN_DAN_PASSWORD` / `ADMIN_ZAC_PASSWORD` / `ADMIN_PASSWORD` / `ADMIN_SESSION_SECRET` env vars are no longer used (retired 2026-09-26)
 
 ## Webhook URL pattern
 
@@ -71,8 +66,8 @@ Use the signing secret (`whsec_…`) of **this** endpoint from Stripe Dashboard 
 | `create-checkout` | Checkout Session from cart, **priced server-side** (see below). Missing key → `{ ok:false, reason:"stripe_not_configured" }`. |
 | `stripe-webhook` | Verify signature (required, see above); upsert orders/subs in Netlify Blobs |
 | `create-portal` | **Disabled** — always `403 { ok:false, reason:"portal_disabled" }`. See below. |
-| `admin-login` / `admin-logout` | Username+password cookie session for `/admin/` |
-| `admin-orders` / `admin-subscriptions` / `admin-fulfill` | List + mark fulfilled |
+| `admin-me` | Returns the signed-in admin's email (401 / 403 otherwise) |
+| `admin-orders` / `admin-subscriptions` / `admin-fulfill` | List + mark fulfilled (Netlify Identity admin only) |
 
 ## Server-side pricing (`create-checkout`)
 

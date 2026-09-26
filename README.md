@@ -38,6 +38,12 @@ Without `STRIPE_SECRET_KEY`, Pay shows **Payments coming online tonight**.
 - Hero keeps aged opt-ins / spend-on-workflow messaging
 - Billing: one-time / weekly / monthly (`billingCadence`)
 
+## Admin
+
+`/admin/` signs in with **Netlify Identity** (invite-only, no public signup). Only the emails in `ADMIN_EMAILS` (`netlify/functions/lib/auth.js`) get in: `dwhigham94@gmail.com` (Dan) and `zacfischer10x@gmail.com` (Zac). Admin functions return 401 without a signed-in Identity user and 403 for any other email. Invite links that land on `/` are forwarded to `/admin/` by `public/identity-redirect.js`. Details: `PROJECT_BRIEF.md` → Admin access summary.
+
+`npm test` runs every suite, including `scripts/test-admin-auth.js` (401 / 403 / allowed for each admin function).
+
 ## Deploy
 
 Deploy only by pushing to `main` of the private repo `zacfischer10x-ctrl/lead-reload-hq` (Netlify continuous deployment). Manual `netlify deploy --prod` is retired.

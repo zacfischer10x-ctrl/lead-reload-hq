@@ -2,7 +2,7 @@
 
 > **Read this first.** Anyone (human or agent) changing this repo must read this brief before touching anything, and follow the [Working rules](#working-rules) at the bottom.
 
-_Last updated: 2026-09-25 (ET)_
+_Last updated: 2026-09-26 (ET)_
 
 ---
 
@@ -14,14 +14,18 @@ _Last updated: 2026-09-25 (ET)_
 |---|---|
 | Production domain | **https://leadreloadhq.com** (primary; `www.leadreloadhq.com` is an alias) |
 | Fallback URL | https://lead-reload-hq.netlify.app |
-| Admin | **/admin/** — invite-only, usernames **`dan`** and **`zac`** (case-insensitive), no public signup |
+| Admin | **/admin/** — Netlify Identity sign-in, invite-only, allowlisted emails **`dwhigham94@gmail.com`** (Dan) and **`zacfischer10x@gmail.com`** (Zac), no public signup |
 | Owners | Co-owned by **Dan Whigham** and **Zac Fischer** |
 
 ### Admin access summary
 
-- Passwords come only from Netlify env vars `ADMIN_DAN_PASSWORD` / `ADMIN_ZAC_PASSWORD` (legacy `ADMIN_PASSWORD` still logs in as `dan`).
-- Session is a signed, httpOnly cookie **`lr_admin_session`** (signed with `ADMIN_SESSION_SECRET`).
-- Unauthenticated calls to admin APIs return **401**.
+- Sign-in is **Netlify Identity** (the Identity widget on `/admin/`). Identity registration is **invite-only**; external providers (Google, GitHub, etc.) are off. Each person sets their own password from the invite email; "Forgot password?" in the widget sends a reset email.
+- Every admin function checks the Identity user Netlify puts on `context.clientContext.user` (from the `Authorization: Bearer <JWT>` the admin page sends) in `netlify/functions/lib/auth.js`:
+  - no user → **401** `unauthorized`; user whose email is not in **`ADMIN_EMAILS`** → **403** `forbidden`.
+  - `ADMIN_EMAILS` (one constant, compared lowercase) = `dwhigham94@gmail.com`, `zacfischer10x@gmail.com`. The email list is the whole gate; no Identity role is needed, and a role alone does not grant access.
+- Invite/recovery/confirmation email links land on the site root (`/#invite_token=…`); `public/identity-redirect.js` forwards them to `/admin/`, where the widget shows the set-password screen and then the admin.
+- To change who has admin: edit `ADMIN_EMAILS`, run `npm test`, merge, then invite/remove the user under Netlify → Identity. Both steps are needed.
+- The old username/password gate (`ADMIN_DAN_PASSWORD`, `ADMIN_ZAC_PASSWORD`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, cookie `lr_admin_session`) was removed on 2026-09-26. The code no longer reads those env vars; delete them from Netlify once the Identity admin is verified live.
 
 ---
 
@@ -67,7 +71,9 @@ Do not add AAAA records on `@` (breaks Netlify SSL).
 public/                     Static storefront (publish dir)
   index.html, app.js,       Order wizard, cart, pricing, Stripe checkout call
   styles.css, lead-reload-logo.png
-  admin/                    Thin invite-only admin UI (index.html, admin.js, admin.css)
+  admin/                    Thin invite-only admin UI (index.html, admin.js, admin.css);
+                            signs in with the Netlify Identity widget
+  identity-redirect.js      Forwards Identity email links (#invite_token= etc.) from / to /admin/
 netlify/functions/          Serverless functions
   create-checkout.js        Builds a dynamic Stripe Checkout Session with price_data, priced
                             server-side from lib/pricing.js (client unitPrice is ignored).
@@ -79,17 +85,17 @@ netlify/functions/          Serverless functions
                             signature → 400); stores orders/subscriptions in Netlify Blobs.
   create-portal.js          DISABLED 2026-09-25 (403 portal_disabled) until it sits behind
                             admin login or a signed customer session.
-  admin-login.js            Username + password login → sets lr_admin_session cookie.
-  admin-logout.js           Clears the session cookie.
+  admin-me.js               Who am I: 200 {email} for an allowlisted Identity user, else 401/403.
   admin-orders.js           Lists orders (admin only).
   admin-subscriptions.js    Lists subscriptions (admin only).
   admin-fulfill.js          Marks an order fulfilled (admin only).
-  lib/                      Shared helpers: auth.js (sessions/allowlist), blobs.js,
+  lib/                      Shared helpers: auth.js (Identity user + ADMIN_EMAILS), blobs.js,
                             http.js (JSON/CORS/SITE_URL), stripe-client.js,
                             pricing.js (server-side price table — must match public/app.js)
-scripts/                    test-pricing.js, test-webhook.js, test-portal.js, test-probe.js (`npm test`, no deps)
+scripts/                    test-pricing.js, test-webhook.js, test-portal.js, test-probe.js,
+                            test-admin-auth.js (`npm test`, no deps)
 netlify.toml                Build settings, /api/* → functions redirect, /admin redirect, security headers
-package.json                Deps: stripe, @netlify/blobs, cookie
+package.json                Deps: stripe, @netlify/blobs
 .env.example                Placeholder env var names only (real values live in Netlify)
 PROJECT_BRIEF.md            This file
 CHANGELOG.md                Dated change log (newest first)
@@ -127,10 +133,7 @@ Values live **only in Netlify env vars** for site `lead-reload-hq` — never in 
 | `STRIPE_WEBHOOK_SECRET` | Yes (for webhook) | Verifies Stripe webhook signatures |
 | `STRIPE_PUBLISHABLE_KEY` | Optional | Reserved (Checkout is hosted) |
 | `SITE_URL` | Recommended | Base for success/cancel + portal return URLs |
-| `ADMIN_DAN_PASSWORD` | Yes (admin) | Login for `dan` |
-| `ADMIN_ZAC_PASSWORD` | Yes (admin) | Login for `zac` |
-| `ADMIN_PASSWORD` | Legacy / optional | Shared fallback; logs in as `dan` |
-| `ADMIN_SESSION_SECRET` | Yes | Signs the `lr_admin_session` cookie |
+| ~~`ADMIN_DAN_PASSWORD`~~, ~~`ADMIN_ZAC_PASSWORD`~~, ~~`ADMIN_PASSWORD`~~, ~~`ADMIN_SESSION_SECRET`~~ | **Retired 2026-09-26** | No longer read. Admin uses Netlify Identity (no env vars). Delete them from Netlify after the Identity admin is verified live. |
 
 ---
 
@@ -144,6 +147,7 @@ Values live **only in Netlify env vars** for site `lead-reload-hq` — never in 
   - `customer.subscription.deleted`
   - `invoice.paid`
 - [x] **(c)** `SITE_URL = https://leadreloadhq.com` — **DONE 2026-09-24**.
+- [ ] **(d)** Admin → Netlify Identity (2026-09-26): after this code is live on `main`, invite `dwhigham94@gmail.com` and `zacfischer10x@gmail.com` (Netlify → Identity → Invite users), each accepts and sets a password, both sign in at `/admin/`, then delete the retired `ADMIN_*` env vars.
 - [ ] Zac creates private repo `zacfischer10x-ctrl/lead-reload-hq`, pushes this code, adds the Netlify deploy key + webhook, then confirms a push to `main` produces a successful production deploy (Netlify side already linked 2026-09-24).
 
 ---
