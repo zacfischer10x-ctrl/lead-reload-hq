@@ -1,15 +1,35 @@
 (function () {
   "use strict";
 
-  const api = (path, opts = {}) =>
-    fetch("/.netlify/functions/" + path, {
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-      ...opts,
-    }).then(async (r) => {
-      const data = await r.json().catch(() => ({}));
-      return { status: r.status, data };
+  // Netlify Identity widget (loaded in index.html). Admin functions read the
+  // signed-in user from the Bearer JWT; see netlify/functions/lib/auth.js.
+  const ni = window.netlifyIdentity || null;
+
+  async function authHeader() {
+    const user = ni && ni.currentUser && ni.currentUser();
+    if (!user) return {};
+    try {
+      const token = await user.jwt(); // refreshes an expired token
+      return token ? { Authorization: "Bearer " + token } : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  const api = async (path, opts = {}) => {
+    const { headers: extra, ...rest } = opts;
+    const r = await fetch("/.netlify/functions/" + path, {
+      cache: "no-store",
+      ...rest,
+      headers: {
+        "Content-Type": "application/json",
+        ...(await authHeader()),
+        ...(extra || {}),
+      },
     });
+    const data = await r.json().catch(() => ({}));
+    return { status: r.status, data };
+  };
 
   const $ = (id) => document.getElementById(id);
   let orders = [];
@@ -47,53 +67,69 @@
     }
   }
 
-  function showLogin() {
-    $("login-panel").classList.remove("hidden");
+  function hidePanels() {
+    $("login-panel").classList.add("hidden");
+    $("denied-panel").classList.add("hidden");
     $("dash-panel").classList.add("hidden");
-    $("logout-btn").classList.add("hidden");
-    setSignedInLabel(null);
   }
 
-  function showDash(user) {
-    $("login-panel").classList.add("hidden");
+  function showLogin(message) {
+    hidePanels();
+    $("login-panel").classList.remove("hidden");
+    $("logout-btn").classList.add("hidden");
+    setSignedInLabel(null);
+    const err = $("login-error");
+    if (message) {
+      err.textContent = message;
+      err.classList.remove("hidden");
+    } else {
+      err.textContent = "";
+      err.classList.add("hidden");
+    }
+  }
+
+  function showDenied(email) {
+    hidePanels();
+    $("denied-panel").classList.remove("hidden");
+    $("denied-email").textContent = email || "this account";
+    $("logout-btn").classList.remove("hidden");
+    setSignedInLabel(email || null);
+  }
+
+  function showDash(email) {
+    hidePanels();
     $("dash-panel").classList.remove("hidden");
     $("logout-btn").classList.remove("hidden");
-    setSignedInLabel(user || currentUser || "admin");
+    setSignedInLabel(email || currentUser || "admin");
     refresh();
   }
 
-  async function checkAuth() {
-    const { data } = await api("admin-login", { method: "GET" });
-    if (data.authenticated) showDash(data.user);
-    else showLogin();
-  }
-
-  async function login() {
-    const err = $("login-error");
-    err.classList.add("hidden");
-    const username = ($("username") && $("username").value) || "";
-    const password = ($("password") && $("password").value) || "";
-    const { data } = await api("admin-login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
-    if (!data.ok) {
-      err.textContent =
-        data.reason === "admin_not_configured"
-          ? "Admin passwords are not set on this site yet."
-          : "Invalid username or password.";
-      err.classList.remove("hidden");
+  // Ask the server whether this Identity user is an allowlisted admin.
+  async function checkAccess() {
+    const user = ni && ni.currentUser && ni.currentUser();
+    if (!user) {
+      showLogin();
       return;
     }
-    if ($("password")) $("password").value = "";
-    showDash(data.user);
+    const { status, data } = await api("admin-me", { method: "GET" });
+    if (status === 200 && data.ok) showDash(data.email);
+    else if (status === 403) showDenied(user.email);
+    else showLogin("Your session expired. Please sign in again.");
   }
 
-  async function logout() {
-    await api("admin-logout", { method: "POST", body: "{}" });
-    if ($("username")) $("username").value = "";
-    if ($("password")) $("password").value = "";
-    showLogin();
+  function login() {
+    if (!ni) {
+      showLogin(
+        "Sign-in is unavailable: the Netlify Identity widget did not load. Reload the page; if it persists, Identity is not enabled on this site."
+      );
+      return;
+    }
+    ni.open("login");
+  }
+
+  function logout() {
+    if (ni && ni.currentUser && ni.currentUser()) ni.logout();
+    else showLogin();
   }
 
   async function refresh() {
@@ -102,7 +138,11 @@
       api("admin-subscriptions"),
     ]);
     if (o.status === 401 || s.status === 401) {
-      showLogin();
+      showLogin("Your session expired. Please sign in again.");
+      return;
+    }
+    if (o.status === 403 || s.status === 403) {
+      showDenied(currentUser);
       return;
     }
     orders = (o.data && o.data.orders) || [];
@@ -302,15 +342,30 @@
   });
 
   $("login-btn").addEventListener("click", login);
-  ["username", "password"].forEach((id) => {
-    const el = $(id);
-    if (!el) return;
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") login();
-    });
-  });
   $("logout-btn").addEventListener("click", logout);
+  $("denied-logout-btn").addEventListener("click", logout);
   $("refresh-btn").addEventListener("click", refresh);
 
-  checkAuth();
+  if (!ni) {
+    showLogin(
+      "Sign-in is unavailable: the Netlify Identity widget did not load. Reload the page; if it persists, Identity is not enabled on this site."
+    );
+    return;
+  }
+
+  // The widget initialises itself on DOMContentLoaded (this script runs
+  // before that) and handles #invite_token= / #recovery_token= /
+  // #confirmation_token= / #email_change_token= on its own: it opens the
+  // set-password / reset-password screen, then fires "login". The site root
+  // forwards those links here (public/identity-redirect.js).
+  ni.on("init", (user) => {
+    if (user) checkAccess();
+    else showLogin();
+  });
+  ni.on("login", () => {
+    ni.close();
+    checkAccess();
+  });
+  ni.on("logout", () => showLogin());
+  ni.on("error", (err) => console.warn("Netlify Identity error", err));
 })();

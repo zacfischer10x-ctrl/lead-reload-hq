@@ -2,9 +2,7 @@
 
 const { json, options, parseBody, siteUrl } = require("./lib/http");
 const { getStripe, stripeConfigured } = require("./lib/stripe-client");
-
-const MAX_QTY = 100000;
-const ALLOWED = new Set(["one-time", "weekly", "monthly"]);
+const { MAX_QTY, BILLING_CADENCES, quote } = require("./lib/pricing");
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return options();
@@ -26,14 +24,15 @@ exports.handler = async (event) => {
     return json(200, { ok: false, reason: "stripe_not_configured" });
   }
 
+  // NOTE: the browser also sends unitPrice / leadTypeLabel / ageBandLabel.
+  // They are deliberately ignored: price and labels come only from the
+  // server-side table in lib/pricing.js so a tampered request cannot change
+  // what Stripe charges.
   const {
     leadType,
-    leadTypeLabel,
     ageBandId,
-    ageBandLabel,
     quantity,
     states,
-    unitPrice,
     billingCadence = "one-time",
     email,
     contactMethods,
@@ -41,42 +40,43 @@ exports.handler = async (event) => {
   } = body;
 
   const qty = Number(quantity);
-  const unit = Number(unitPrice);
 
   if (!leadType || !ageBandId || !email || !String(email).includes("@")) {
     return json(400, { ok: false, reason: "invalid_cart" });
   }
-  if (!Number.isFinite(qty) || qty < 1 || qty > MAX_QTY) {
+  if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) {
     return json(400, { ok: false, reason: "invalid_quantity" });
   }
-  if (!Number.isFinite(unit) || unit <= 0) {
-    return json(400, { ok: false, reason: "invalid_unit_price" });
-  }
-  if (!ALLOWED.has(billingCadence)) {
+  if (!Object.prototype.hasOwnProperty.call(BILLING_CADENCES, billingCadence)) {
     return json(400, { ok: false, reason: "invalid_cadence" });
   }
   if (!Array.isArray(states) || states.length === 0) {
     return json(400, { ok: false, reason: "invalid_states" });
   }
 
-  const amountCents = Math.round(unit * qty * 100);
-  if (amountCents < 50) {
-    return json(400, { ok: false, reason: "amount_too_small" });
+  // Server-side pricing: unknown leadType / ageBandId combos → 400.
+  const priced = quote({ leadType, ageBandId, quantity: qty, billingCadence });
+  if (!priced.ok) {
+    return json(400, { ok: false, reason: priced.reason });
   }
+  const amountCents = priced.amountCents;
 
   const stripe = getStripe();
   const origin = siteUrl(event);
-  const productName = `Lead Reload HQ — ${leadTypeLabel || leadType} (${ageBandLabel || ageBandId})`;
+  const productName = `Lead Reload HQ — ${priced.leadTypeLabel} (${priced.ageBandLabel})`;
   const description = `${qty.toLocaleString("en-US")} leads · ${states.join(",")}`;
 
   const metadata = {
-    leadType: String(leadType).slice(0, 64),
-    leadTypeLabel: String(leadTypeLabel || leadType).slice(0, 64),
-    ageBandId: String(ageBandId).slice(0, 64),
-    ageBandLabel: String(ageBandLabel || "").slice(0, 64),
-    quantity: String(qty),
-    unitPrice: String(unit),
-    billingCadence: String(billingCadence),
+    leadType: priced.leadType,
+    leadTypeLabel: priced.leadTypeLabel,
+    ageBandId: priced.ageBandId,
+    ageBandLabel: priced.ageBandLabel,
+    quantity: String(priced.quantity),
+    unitPrice: priced.unitPrice,
+    unitPriceCents: String(priced.unitCents),
+    amountCents: String(amountCents),
+    pricing: "server",
+    billingCadence: priced.billingCadence,
     states: states.join(",").slice(0, 450),
     contactMethods: Array.isArray(contactMethods)
       ? contactMethods.join(",").slice(0, 200)
@@ -87,7 +87,7 @@ exports.handler = async (event) => {
 
   try {
     const sessionParams = {
-      mode: billingCadence === "one-time" ? "payment" : "subscription",
+      mode: priced.mode,
       customer_email: String(email).trim().slice(0, 200),
       success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?checkout=cancel`,
@@ -95,7 +95,7 @@ exports.handler = async (event) => {
       line_items: [],
     };
 
-    if (billingCadence === "one-time") {
+    if (priced.mode === "payment") {
       sessionParams.line_items = [
         {
           quantity: 1,
@@ -115,7 +115,7 @@ exports.handler = async (event) => {
         },
       ];
     } else {
-      const interval = billingCadence === "weekly" ? "week" : "month";
+      const interval = priced.interval;
       sessionParams.line_items = [
         {
           quantity: 1,
@@ -125,7 +125,7 @@ exports.handler = async (event) => {
             recurring: { interval },
             product_data: {
               name: productName,
-              description: `${description} · ${billingCadence}`,
+              description: `${description} · ${priced.billingCadence}`,
               metadata: {
                 leadType: metadata.leadType,
                 ageBandId: metadata.ageBandId,

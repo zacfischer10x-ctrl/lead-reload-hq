@@ -2,9 +2,16 @@
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, Cookie",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Credentials": "true",
+};
+
+// Admin responses are per-user: never cache them anywhere.
+const ADMIN_NO_STORE = {
+  "Cache-Control": "private, no-store, max-age=0",
+  "Netlify-CDN-Cache-Control": "no-store",
+  Vary: "Authorization",
 };
 
 function json(statusCode, body, extraHeaders = {}) {
@@ -54,4 +61,4 @@ function siteUrl(event) {
   return `${proto}://${host}`;
 }
 
-module.exports = { json, text, options, parseBody, siteUrl, CORS };
+module.exports = { json, text, options, parseBody, siteUrl, CORS, ADMIN_NO_STORE };
