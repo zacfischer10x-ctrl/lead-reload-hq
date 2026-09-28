@@ -2,7 +2,7 @@
 
 > **Read this first.** Anyone (human or agent) changing this repo must read this brief before touching anything, and follow the [Working rules](#working-rules) at the bottom.
 
-_Last updated: 2026-09-26 (ET)_
+_Last updated: 2026-09-28 (ET)_
 
 ---
 
@@ -26,6 +26,13 @@ _Last updated: 2026-09-26 (ET)_
 - Invite/recovery/confirmation email links land on the site root (`/#invite_token=…`); `public/identity-redirect.js` forwards them to `/admin/`, where the widget shows the set-password screen and then the admin.
 - To change who has admin: edit `ADMIN_EMAILS`, run `npm test`, merge, then invite/remove the user under Netlify → Identity. Both steps are needed.
 - The old username/password gate (`ADMIN_DAN_PASSWORD`, `ADMIN_ZAC_PASSWORD`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, cookie `lr_admin_session`) was removed on 2026-09-26. The code no longer reads those env vars; delete them from Netlify once the Identity admin is verified live.
+
+### Order fulfillment (2026-09-28)
+
+- Every row in the `lr-orders` blob store is one order to fulfill: `kind` **one-time** (checkout, key = session id), **subscription** (the first paid period of a weekly/monthly checkout, key = session id), or **renewal** (each later paid subscription invoice, key = invoice id, with lead type / age band / quantity / states copied from the subscription metadata).
+- The first invoice of a subscription (`billing_reason: subscription_create`) does **not** get its own row; the checkout's subscription row already covers it. Stripe retries hit the same key and keep the admin's status, so nothing is duplicated or reset.
+- Fulfillment fields: `fulfillmentStatus` (`New` | `In progress` | `Completed`, default New), `completedAt` / `completedBy` (admin Identity email), `statusUpdatedAt` / `statusUpdatedBy`. Rows without them read as New (legacy `status: "fulfilled"` reads as Completed). Nothing is migrated in storage.
+- `/admin/` → Orders: Open / Completed / All and All types / One-time / Subscription filters, one-tap **Mark completed**, In progress / Reopen, and **Export CSV** of the rows on screen (formula-safe). Model and rules: `netlify/functions/lib/orders.js`.
 
 ---
 
@@ -71,8 +78,9 @@ Do not add AAAA records on `@` (breaks Netlify SSL).
 public/                     Static storefront (publish dir)
   index.html, app.js,       Order wizard, cart, pricing, Stripe checkout call
   styles.css, lead-reload-logo.png
-  admin/                    Thin invite-only admin UI (index.html, admin.js, admin.css);
-                            signs in with the Netlify Identity widget
+  admin/                    Thin invite-only admin UI (index.html, admin.js, admin.css,
+                            orders-view.js = order labels + CSV export); signs in with the
+                            Netlify Identity widget
   identity-redirect.js      Forwards Identity email links (#invite_token= etc.) from / to /admin/
 netlify/functions/          Serverless functions
   create-checkout.js        Builds a dynamic Stripe Checkout Session with price_data, priced
@@ -83,17 +91,23 @@ netlify/functions/          Serverless functions
                             "Payments coming online tonight".
   stripe-webhook.js         Verifies Stripe signature (required; no secret → 503, bad/missing
                             signature → 400); stores orders/subscriptions in Netlify Blobs.
+                            One order row per paid checkout and per renewal invoice
+                            (subscription_create invoices skipped: the checkout row covers them).
   create-portal.js          DISABLED 2026-09-25 (403 portal_disabled) until it sits behind
                             admin login or a signed customer session.
   admin-me.js               Who am I: 200 {email} for an allowlisted Identity user, else 401/403.
-  admin-orders.js           Lists orders (admin only).
+  admin-orders.js           Lists orders (admin only); ?status=all|open|completed
+                            &type=all|one-time|subscription, plus counts.
   admin-subscriptions.js    Lists subscriptions (admin only).
-  admin-fulfill.js          Marks an order fulfilled (admin only).
+  admin-fulfill.js          Sets fulfillment status (admin only): action complete|start|reopen
+                            or status New|In progress|Completed; stamps completedAt/completedBy.
   lib/                      Shared helpers: auth.js (Identity user + ADMIN_EMAILS), blobs.js,
-                            http.js (JSON/CORS/SITE_URL), stripe-client.js,
+                            http.js (JSON/CORS/SITE_URL), stripe-client.js, orders.js
+                            (fulfillment status model, filters, idempotent order upsert),
                             pricing.js (server-side price table — must match public/app.js)
 scripts/                    test-pricing.js, test-webhook.js, test-portal.js, test-probe.js,
-                            test-admin-auth.js (`npm test`, no deps)
+                            test-admin-auth.js, test-renewals.js, test-fulfillment.js
+                            (`npm test`, no deps)
 netlify.toml                Build settings, /api/* → functions redirect, /admin redirect, security headers
 package.json                Deps: stripe, @netlify/blobs
 .env.example                Placeholder env var names only (real values live in Netlify)

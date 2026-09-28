@@ -59,6 +59,8 @@ Use the signing secret (`whsec_…`) of **this** endpoint from Stripe Dashboard 
 - `customer.subscription.deleted`
 - `invoice.paid`
 
+No extra events are needed for order fulfillment tracking (2026-09-28). `invoice.paid` now also writes a **renewal** order row per paid subscription invoice (key = invoice id); invoices with `billing_reason: subscription_create` are skipped because the `checkout.session.completed` subscription row covers the first period. Both invoice payload shapes are read (`invoice.subscription` on API ≤ 2025-02, `invoice.parent.subscription_details` on 2025-03 "basil" and later), so the endpoint's API version doesn't matter. Make sure the **live-mode** endpoint subscribes to `invoice.paid` too.
+
 ## Functions
 
 | Function | Role |
@@ -67,7 +69,7 @@ Use the signing secret (`whsec_…`) of **this** endpoint from Stripe Dashboard 
 | `stripe-webhook` | Verify signature (required, see above); upsert orders/subs in Netlify Blobs |
 | `create-portal` | **Disabled** — always `403 { ok:false, reason:"portal_disabled" }`. See below. |
 | `admin-me` | Returns the signed-in admin's email (401 / 403 otherwise) |
-| `admin-orders` / `admin-subscriptions` / `admin-fulfill` | List + mark fulfilled (Netlify Identity admin only) |
+| `admin-orders` / `admin-subscriptions` / `admin-fulfill` | List orders (status/type filters) and subscriptions; set fulfillment status New / In progress / Completed (Netlify Identity admin only) |
 
 ## Server-side pricing (`create-checkout`)
 

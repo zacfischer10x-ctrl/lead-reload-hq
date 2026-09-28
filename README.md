@@ -42,7 +42,9 @@ Without `STRIPE_SECRET_KEY`, Pay shows **Payments coming online tonight**.
 
 `/admin/` signs in with **Netlify Identity** (invite-only, no public signup). Only the emails in `ADMIN_EMAILS` (`netlify/functions/lib/auth.js`) get in: `dwhigham94@gmail.com` (Dan) and `zacfischer10x@gmail.com` (Zac). Admin functions return 401 without a signed-in Identity user and 403 for any other email. Invite links that land on `/` are forwarded to `/admin/` by `public/identity-redirect.js`. Details: `PROJECT_BRIEF.md` → Admin access summary.
 
-`npm test` runs every suite, including `scripts/test-admin-auth.js` (401 / 403 / allowed for each admin function).
+**Orders / fulfillment:** the Orders tab lists every paid order to fulfill (one-time, new subscription, and each renewal invoice) with Open / Completed / All and All types / One-time / Subscription filters, a one-tap **Mark completed** (plus In progress / Reopen), and **Export CSV** of the filtered rows. Status fields: `fulfillmentStatus`, `completedAt`, `completedBy`, `statusUpdatedAt`, `statusUpdatedBy` (`netlify/functions/lib/orders.js`).
+
+`npm test` runs every suite, including `scripts/test-admin-auth.js` (401 / 403 / allowed for each admin function), `scripts/test-renewals.js` (renewal rows, first-invoice dedupe, retry idempotency) and `scripts/test-fulfillment.js` (status transitions, filters, CSV escaping).
 
 ## Deploy
 
