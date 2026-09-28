@@ -8,7 +8,7 @@ _Last updated: 2026-09-26 (ET)_
 
 ## 1. What this is
 
-**Lead Reload HQ** is a lead-ordering storefront for premium aged opt-in insurance leads. Buyers build an order (lead type, age band, quantity, states, billing cadence) and pay through Stripe's hosted checkout.
+**Lead Reload HQ** is a lead-ordering storefront for aged insurance lead data. Buyers build an order (lead type, age band, quantity, states, billing cadence) and pay through Stripe's hosted checkout.
 
 | | |
 |---|---|
@@ -111,7 +111,7 @@ DEPLOY_INFO.md              Snapshot of initial deploy + DNS instructions (histo
 Do not change these without asking Dan/Zac first.
 
 1. **HQ branding** — "Lead Reload HQ" in the header (logo + **HQ badge**), page `<title>`/meta, and footer.
-2. **Hero messaging** — aged opt-ins / spend-on-workflow positioning stays.
+2. **Hero messaging** — spend-on-workflow positioning stays, in neutral wording ("aged insurance leads", "lead data"). **Leads are NOT exclusive. Public copy makes no claims of exclusivity, opt-in, consent, permission, compliance, verification, or sourcing** (Dan, 2026-09-28). Check with `scripts/live-copy-check.sh` after deploys.
 3. **Quantity presets** — **2,500 / 5,000 / 10,000** volume chips.
 4. **Orders are NOT capped at 1,000** — custom quantities up to **100,000**. Copy says "Large orders welcome, up to 100,000 leads per order"; there are **no volume discounts or tiers**, so don't imply any.
 5. **Billing** — **one-time + weekly + monthly** on one cart.

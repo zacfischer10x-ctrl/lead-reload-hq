@@ -2,7 +2,7 @@
 
 > **Read [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md) first** — site facts, locked decisions, env var names, open items, and working rules. Log every change in [`CHANGELOG.md`](CHANGELOG.md).
 
-Premium B2B storefront for aged opt-in insurance leads. Evolved from the Lead Reload mockup (UI, pricing, wizard, logo reused — not redesigned from scratch).
+B2B storefront for aged insurance lead data. Evolved from the Lead Reload mockup (UI, pricing, wizard, logo reused — not redesigned from scratch).
 
 **Work only under** `/workspace/lead-reload-hq/`. Source mockup at `/workspace/setr-marketing-data/` is not modified in place. Existing Netlify mockup `effortless-nasturtium-30f8ff` is left alone.
 
@@ -35,7 +35,7 @@ Without `STRIPE_SECRET_KEY`, Pay shows **Payments coming online tonight**.
 - Presets keep gold volume chips **2,500 / 5,000 / 10,000**
 - Callout: buyers are **not capped at 1,000**; custom qty up to **100,000**; same per-lead price at any quantity (no volume discounts)
 - Age bands (both lead types): Under 30, 30–60, 60–90, 90–365, 365+ days — prices in `STRIPE_SETUP.md`
-- Hero keeps aged opt-ins / spend-on-workflow messaging
+- Hero keeps spend-on-workflow messaging in neutral wording ("aged insurance leads", "lead data") — see `PROJECT_BRIEF.md` locked decision 2
 - Billing: one-time / weekly / monthly (`billingCadence`)
 
 ## Admin

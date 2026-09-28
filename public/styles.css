@@ -1469,6 +1469,12 @@ body:not(.condense-chrome) .order-preview {
   line-height: 1.4;
 }
 
+/* The `hidden` attribute must win over `display: grid` above, otherwise the
+   "Payments coming online tonight" banner shows even when Stripe is live. */
+.pay-offline-banner[hidden] {
+  display: none;
+}
+
 .pay-offline-banner strong {
   color: var(--gold-300);
   font-size: 0.95rem;
