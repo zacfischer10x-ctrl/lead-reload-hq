@@ -2,7 +2,7 @@
   "name": "lead-reload-hq",
   "version": "1.0.0",
   "private": true,
-  "description": "Lead Reload HQ \u2014 B2B aged opt-in lead marketplace with Stripe checkout",
+  "description": "Lead Reload HQ \u2014 B2B aged insurance lead marketplace with Stripe checkout",
   "scripts": {
     "dev": "netlify dev",
     "build": "echo 'Static site \u2014 no build step'",

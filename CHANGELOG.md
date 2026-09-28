@@ -2,6 +2,13 @@
 
 Newest first. Times are ET (America/New_York). Add a dated entry after every change.
 
+## 2026-09-28
+
+### ~6:40 AM ET — Neutral lead wording (non-exclusive) + offline-banner fix _(branch `copy/non-exclusive-neutral`, pending Zac's merge; decided by Dan)_
+- **Copy:** Lead Reload HQ leads are **not exclusive**, and public copy makes no exclusivity, opt-in, consent, or similar claims. `index.html` title / og:title "Order Exclusive Leads" → "Order Aged Insurance Leads"; meta description → "aged insurance lead data. Order by lead type, age band, quantity, and state."; og:description → "Aged insurance lead data. Buy the data, spend on the workflow."; hero H1 → "Order aged insurance leads"; value callout title → "Aged leads need follow-up" (body's last sentence → "That's where the work on aged leads happens."); footer tagline → "Aged insurance lead marketplace". Also `package.json` description, `README.md`, and `PROJECT_BRIEF.md` (locked decision 2 updated). No price, functionality, or `app.js` change.
+- **Fix:** `.pay-offline-banner[hidden] { display: none }` — the banner's `display: grid` overrode the `hidden` attribute, so "Payments coming online tonight" showed even when Stripe was live. `styles.css` cache-bust → `?v=20260928copy`.
+- **New `scripts/live-copy-check.sh`:** curls the live site (`/`, `/app.js`, CSS/JS, `/admin/`, legal paths) and greps for the ruled-out wording. Run after the deploy: `bash scripts/live-copy-check.sh` (exit 0 = clean).
+
 ## 2026-09-26
 
 ### ~11:35 AM ET — Admin sign-in moved to Netlify Identity; shared password gate removed _(same branch, patch 7/7, pending Zac's merge; approved by Dan)_
