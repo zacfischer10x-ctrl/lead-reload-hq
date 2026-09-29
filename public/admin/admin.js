@@ -298,7 +298,9 @@
         const bits = [
           V.leadTypeLabel(o),
           V.ageBandLabel(o),
-          V.quantity(o) ? Number(V.quantity(o)).toLocaleString("en-US") + " leads" : "",
+          V.quantity(o)
+            ? Number(V.quantity(o)).toLocaleString("en-US") + " " + V.unitNoun(o) + "s"
+            : "",
         ].filter(Boolean);
         const states = V.states(o);
         const period =

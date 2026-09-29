@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260928copy" />
+  <link rel="stylesheet" href="styles.css?v=20260929bo" />
   <!-- Sends Netlify Identity invite/recovery links that land here to /admin/ -->
   <script src="identity-redirect.js?v=20260926id"></script>
 </head>
@@ -100,6 +100,15 @@
                 <p>Private health insurance lead inventory.</p>
               </div>
             </label>
+            <label class="type-card">
+              <input type="radio" name="leadType" value="business-owner" />
+              <div class="type-card-body">
+                <div class="type-icon" aria-hidden="true">▣</div>
+                <h3>Business Owner Raw Data</h3>
+                <p>Raw business owner records. $0.003/record ($30 per 10k). No age band.</p>
+                <p class="type-min-badge">$100 minimum</p>
+              </div>
+            </label>
           </div>
         </section>
 
@@ -113,13 +122,13 @@
         <!-- Step 3: Quantity -->
         <section class="step hidden" id="step-3" data-step="3">
           <h2>Choose quantity</h2>
-          <p class="step-desc">How many leads do you need?</p>
+          <p class="step-desc" id="qty-desc">How many leads do you need?</p>
           <div class="qty-control">
             <button type="button" class="qty-btn" id="qty-minus" aria-label="Decrease quantity">−</button>
             <input type="number" id="quantity" min="1" max="100000" value="100" inputmode="numeric" aria-describedby="qty-volume-callout qty-custom-hint" />
             <button type="button" class="qty-btn" id="qty-plus" aria-label="Increase quantity">+</button>
           </div>
-          <div class="qty-presets">
+          <div class="qty-presets" data-presets="default">
             <button type="button" class="chip-btn" data-qty="50">50</button>
             <button type="button" class="chip-btn" data-qty="100">100</button>
             <button type="button" class="chip-btn" data-qty="250">250</button>
@@ -129,10 +138,19 @@
             <button type="button" class="chip-btn chip-btn-volume" data-qty="5000">5,000</button>
             <button type="button" class="chip-btn chip-btn-volume" data-qty="10000">10,000</button>
           </div>
+          <!-- Business Owner Raw Data presets ($100 minimum = 33,334 records); shown instead of the ones above -->
+          <div class="qty-presets hidden" data-presets="business-owner">
+            <button type="button" class="chip-btn chip-btn-volume" data-qty="35000">35,000</button>
+            <button type="button" class="chip-btn chip-btn-volume" data-qty="50000">50,000</button>
+            <button type="button" class="chip-btn chip-btn-volume" data-qty="100000">100,000</button>
+            <button type="button" class="chip-btn chip-btn-volume" data-qty="250000">250,000</button>
+          </div>
           <p class="qty-volume-callout" id="qty-volume-callout" role="note">
             <strong>Not capped at 1,000.</strong> Buyers routinely order 2,500 / 5,000 / 10,000+.
             Type any custom quantity up to <strong>100,000</strong> — same per-lead price at any quantity; for large or multi-state orders we will confirm delivery windows.
           </p>
+          <p class="qty-flat-note hidden" id="qty-flat-note" role="note">Business Owner Raw Data: $0.003/record ($30 per 10k). $100 minimum order (33,334 records or more), up to 1,000,000 records per order. Same price at any quantity. Totals round up to the next whole cent.</p>
+          <p class="qty-min-note hidden" id="qty-min-note" role="alert"></p>
           <p class="qty-custom-hint" id="qty-custom-hint">Custom quantity: use the field above (or ±) — presets are shortcuts only.</p>
           <p class="qty-hint">Unit price: <strong id="qty-unit-price">—</strong> · Est. total: <strong id="qty-est-total">—</strong></p>
         </section>
@@ -308,6 +326,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=20260925hq"></script>
+  <script src="app.js?v=20260929bo"></script>
 </body>
 </html>

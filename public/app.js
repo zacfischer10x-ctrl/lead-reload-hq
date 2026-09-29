@@ -22,7 +22,24 @@
       label: "Private Health",
       pricingKey: "privateHealth",
     },
+    "business-owner": {
+      id: "business-owner",
+      label: "Business Owner Raw Data",
+      pricingKey: "businessOwner",
+      unit: "record",
+      // Same limits as lib/pricing.js: $100 minimum on the raw total
+      // (33,334+ records) and up to 1,000,000 records per order.
+      minOrderCents: 10000,
+      maxQty: 1000000,
+    },
   };
+
+  /**
+   * Business Owner Raw Data, dollars per record: $0.003 ($30 per 10,000).
+   * One flat price, no age band. Must equal BUSINESS_OWNER_PER_RECORD in
+   * netlify/functions/lib/pricing.js; `npm test` fails if the two differ.
+   */
+  const BUSINESS_OWNER_PER_RECORD = 0.003;
 
   /**
    * Private Health, 90–365 days, dollars per lead.
@@ -53,6 +70,10 @@
       { id: "lm-90-365", label: "90–365 days", price: 0.1 },
       { id: "lm-365", label: "365+ days", price: 0.03 },
     ],
+    // Flat price, no age band: the wizard skips the Age step for this type.
+    businessOwner: [
+      { id: "bo-flat", label: "No age band (flat rate)", price: BUSINESS_OWNER_PER_RECORD, flat: true },
+    ],
   };
 
   const US_STATES = [
@@ -78,6 +99,8 @@
   const MIN_ORDER_CENTS = 50;
   const MIN_ORDER_MSG = "Minimum order is $0.50. Add more leads.";
   const CHECKOUT_API = "/.netlify/functions/create-checkout";
+  /** Business Owner presets (per product); keep in sync with index.html. */
+  const BUSINESS_OWNER_PRESETS = [35000, 50000, 100000, 250000];
   /** Customer portal is disabled; subscription changes go through us. */
   const SUBSCRIPTION_HELP =
     "To cancel or change a subscription, reply to your receipt email or contact us.";
@@ -134,8 +157,86 @@
     return band ? band.price : 0;
   }
 
+  /** True for flat-priced lead types (Business Owner): no age band step. */
+  function isFlatType(leadType) {
+    const t = LEAD_TYPES[leadType];
+    const bands = t ? PRICING[t.pricingKey] : [];
+    return bands.length === 1 && bands[0].flat === true;
+  }
+
+  /** "lead" or "record" (Business Owner Raw Data). */
+  function unitNoun() {
+    const t = state.leadType && LEAD_TYPES[state.leadType];
+    return (t && t.unit) || "lead";
+  }
+
+  /** Unit price for display: "$0.52", or "$0.003" for sub-cent prices. */
+  function formatUnitPrice(price) {
+    const mills = Math.round(Number(price) * 1000);
+    return mills % 10 === 0 ? money(price) : "$" + (mills / 1000).toFixed(3);
+  }
+
+  /**
+   * Order total in integer cents, same math as lib/pricing.js:
+   * ceil(unit price in tenths of a cent × quantity / 10). Whole-cent prices
+   * are exact (unit cents × quantity); sub-cent prices round UP to a whole
+   * cent (Business Owner: when the quantity is not a multiple of 10).
+   */
+  function orderCents() {
+    const band = getSelectedBand();
+    if (!band) return 0;
+    const mills = Math.round(band.price * 1000);
+    return Math.floor((mills * (Number(state.quantity) || 0) + 9) / 10);
+  }
+
   function orderTotal() {
-    return unitPrice() * (Number(state.quantity) || 0);
+    return orderCents() / 100;
+  }
+
+  /** Smallest quantity whose total meets Stripe's $0.50 minimum. */
+  function minQtyForBand(band) {
+    if (!band) return 1;
+    const mills = Math.round(band.price * 1000);
+    return Math.max(1, Math.ceil((MIN_ORDER_CENTS * 10 - 9) / mills));
+  }
+
+  /** Per-product quantity cap: 100,000, or 1,000,000 for Business Owner. */
+  function maxQtyFor(leadType) {
+    const t = LEAD_TYPES[leadType];
+    return (t && t.maxQty) || MAX_QTY;
+  }
+
+  /** Product minimum in cents (Business Owner $100), else 0. */
+  function productMinCents() {
+    const t = state.leadType && LEAD_TYPES[state.leadType];
+    return (t && t.minOrderCents) || 0;
+  }
+
+  /** Smallest quantity meeting the product minimum (Business Owner: 33,334). */
+  function productMinQty() {
+    const band = getSelectedBand();
+    const min = productMinCents();
+    if (!band || !min) return 1;
+    return Math.ceil((min * 10) / Math.round(band.price * 1000));
+  }
+
+  /**
+   * Product minimum on the RAW total (before rounding up), same as
+   * lib/pricing.js: 33,333 records × $0.003 = $99.999 is below $100.
+   */
+  function meetsProductMinimum() {
+    const band = getSelectedBand();
+    const min = productMinCents();
+    if (!band || !min) return true;
+    return Math.round(band.price * 1000) * (Number(state.quantity) || 0) >= min * 10;
+  }
+
+  /** " ($30 per 10k)" for sub-cent per-record prices, else "". */
+  function per10kLabel() {
+    const band = getSelectedBand();
+    if (!band || !band.flat) return "";
+    const dollars = Math.round(band.price * 1000) * 10000 / 1000;
+    return " ($" + formatQty(dollars) + " per 10k)";
   }
 
   function getBilling() {
@@ -179,7 +280,7 @@
       const d = JSON.parse(raw);
       if (d.leadType && LEAD_TYPES[d.leadType]) state.leadType = d.leadType;
       if (d.ageBandId) state.ageBandId = d.ageBandId;
-      if (d.quantity >= 1) state.quantity = Math.min(MAX_QTY, Number(d.quantity) || 1);
+      if (d.quantity >= 1) state.quantity = Math.min(maxQtyFor(d.leadType), Number(d.quantity) || 1);
       if (Array.isArray(d.states)) state.states = d.states;
       if (d.billingCadence && BILLING_OPTIONS[d.billingCadence]) {
         state.billingCadence = d.billingCadence;
@@ -215,7 +316,7 @@
         } />
         <div class="age-option-body">
           <span class="age-label">${b.label}</span>
-          <span class="age-price">${money(b.price)}<small>/ lead</small></span>
+          <span class="age-price">${formatUnitPrice(b.price)}<small>/ ${unitNoun()}</small></span>
         </div>
       </label>`
       )
@@ -281,12 +382,16 @@
     const rows = [
       ["Lead type", type],
       ["Age band", band ? band.label : "—"],
-      ["Quantity", formatQty(state.quantity)],
+      ["Quantity", formatQty(state.quantity) + (state.leadType ? " " + unitNoun() + "s" : "")],
       ["States", statesLabel],
-      ["Unit price", money(unitPrice())],
+      ["Unit price", band ? formatUnitPrice(unitPrice()) + " / " + unitNoun() + per10kLabel() : "—"],
       ["Billing", billingLabel()],
       ["Total", formatCadenceTotal(orderTotal())],
     ];
+
+    if (productMinCents()) {
+      rows.splice(5, 0, ["Minimum", money(productMinCents() / 100) + " minimum order"]);
+    }
 
     if (state.contactMethods.length) {
       const plan = state.contactMethods
@@ -343,7 +448,7 @@
         ? "All 51"
         : formatQty(state.states.length) + " selected";
     document.getElementById("prev-unit").textContent = band
-      ? money(band.price)
+      ? formatUnitPrice(band.price) + per10kLabel()
       : "—";
     const prevBilling = document.getElementById("prev-billing");
     if (prevBilling) prevBilling.textContent = billingLabel();
@@ -357,8 +462,9 @@
 
     const qtyUnit = document.getElementById("qty-unit-price");
     const qtyEst = document.getElementById("qty-est-total");
-    if (qtyUnit) qtyUnit.textContent = band ? money(band.price) : "—";
+    if (qtyUnit) qtyUnit.textContent = band ? formatUnitPrice(band.price) + per10kLabel() : "—";
     if (qtyEst) qtyEst.textContent = band ? money(orderTotal()) : "—";
+    updateQtyMinimum();
 
     const payAmt = document.getElementById("pay-amount");
     if (payAmt) payAmt.textContent = money(orderTotal());
@@ -378,16 +484,68 @@
     if (tagMonth) tagMonth.textContent = tot + " / month";
     syncCompactBar();
   }
+
+  /**
+   * Quantity step: per-product presets (Business Owner shows 35k / 50k /
+   * 100k / 250k; everything else keeps 50 … 10,000), per-product input
+   * min/max, and a note when the order is under a minimum: the Business
+   * Owner $100 minimum, or Stripe's $0.50 minimum for other products.
+   */
+  function updateQtyMinimum() {
+    const band = getSelectedBand();
+    const bo = isFlatType(state.leadType);
+    document.querySelectorAll(".qty-presets[data-presets]").forEach((g) => {
+      g.classList.toggle("hidden", (g.dataset.presets === "business-owner") !== bo);
+    });
+    const qtyInput = document.getElementById("quantity");
+    if (qtyInput && qtyInput.setAttribute) {
+      qtyInput.setAttribute("max", String(maxQtyFor(state.leadType)));
+      qtyInput.setAttribute("min", String(productMinQty()));
+    }
+    const note = document.getElementById("qty-min-note");
+    if (note) {
+      let msg = "";
+      if (band && !meetsProductMinimum()) {
+        msg = productMinMessage();
+      } else if (band && orderCents() < MIN_ORDER_CENTS) {
+        msg = "Minimum order is $0.50: at least " + formatQty(minQtyForBand(band)) + " " + unitNoun() + "s at this price.";
+      }
+      note.textContent = msg;
+      note.classList.toggle("hidden", !msg);
+    }
+    const boNote = document.getElementById("qty-flat-note");
+    if (boNote) boNote.classList.toggle("hidden", !bo);
+    // The "up to 100,000 / per-lead" volume callout is for the lead products;
+    // Business Owner shows its own note (records, $100 minimum, 1,000,000 cap).
+    const volCallout = document.getElementById("qty-volume-callout");
+    if (volCallout) volCallout.classList.toggle("hidden", bo);
+    const qtyDesc = document.getElementById("qty-desc");
+    if (qtyDesc) qtyDesc.textContent = "How many " + unitNoun() + "s do you need?";
+  }
+
+  /** Age step (2) does not apply to flat-priced products. */
+  function nextStepFrom(n) {
+    if (n === 1 && isFlatType(state.leadType)) return 3;
+    return n + 1;
+  }
+
+  function prevStepFrom(n) {
+    if (n === 3 && isFlatType(state.leadType)) return 1;
+    return n - 1;
+  }
+
   function showStep(n) {
     state.step = n;
     document.querySelectorAll(".step").forEach((el) => {
       el.classList.toggle("hidden", Number(el.dataset.step) !== n);
     });
 
+    const flat = isFlatType(state.leadType);
     document.querySelectorAll("#progress-steps li").forEach((li) => {
       const s = Number(li.dataset.step);
       li.classList.toggle("active", s === n);
       li.classList.toggle("done", s < n || state.paid);
+      li.classList.toggle("step-na", flat && s === 2);
     });
 
     const nav = document.getElementById("wizard-nav");
@@ -463,7 +621,12 @@
       case 2:
         return !!state.ageBandId && getSelectedBand();
       case 3:
-        return Number(state.quantity) >= 1 && Number(state.quantity) <= MAX_QTY;
+        return (
+          Number(state.quantity) >= 1 &&
+          Number(state.quantity) <= maxQtyFor(state.leadType) &&
+          meetsProductMinimum() &&
+          orderCents() >= MIN_ORDER_CENTS
+        );
       case 4:
         return state.states.length > 0;
       case 5:
@@ -482,7 +645,7 @@
     if (compactTotal) compactTotal.textContent = total;
     if (compactQty) {
       const q = Number(state.quantity) || 0;
-      compactQty.textContent = q ? formatQty(q) + " leads" : "—";
+      compactQty.textContent = q ? formatQty(q) + " " + unitNoun() + "s" : "—";
     }
     if (compactStates) {
       const n = state.states.length;
@@ -676,7 +839,9 @@
     }
     if (banner) banner.hidden = configured;
     if (btn) {
-      btn.disabled = !configured;
+      // Also disabled while the cart is under a product minimum (Business
+      // Owner Raw Data: $100); create-checkout rejects those with 400 too.
+      btn.disabled = !configured || !meetsProductMinimum();
       if (!configured) {
         btn.innerHTML = "Payments coming online tonight";
       } else {
@@ -758,6 +923,11 @@
       return;
     }
 
+    if (!meetsProductMinimum()) {
+      showPayError(productMinMessage());
+      return;
+    }
+
     if (Math.round(orderTotal() * 100) < MIN_ORDER_CENTS) {
       showPayError(MIN_ORDER_MSG);
       return;
@@ -805,6 +975,8 @@
         showPayError(
           data && data.reason === "amount_too_small"
             ? MIN_ORDER_MSG
+            : data && data.reason === "below_minimum"
+            ? productMinMessage()
             : (data && (data.message || data.reason)) ||
                 "Could not start checkout. Please try again."
         );
@@ -931,6 +1103,22 @@
     updateCondenseMode();
   }
 
+  /** Reflect state.quantity in the input and the active preset chip. */
+  function syncQtyInput() {
+    const qtyInput = document.getElementById("quantity");
+    if (qtyInput) qtyInput.value = state.quantity;
+    document.querySelectorAll(".chip-btn[data-qty]").forEach((b) => {
+      b.classList.toggle("active", Number(b.dataset.qty) === state.quantity);
+    });
+  }
+
+  function productMinMessage() {
+    return (
+      "Business Owner Raw Data has a " + money(productMinCents() / 100) +
+      " minimum order: at least " + formatQty(productMinQty()) + " records."
+    );
+  }
+
   // ——— Init ———
   function init() {
     loadDraft();
@@ -963,6 +1151,14 @@
           const still = getBands().some((b) => b.id === state.ageBandId);
           if (!still) state.ageBandId = null;
         }
+        // Flat-priced products (Business Owner) have one band and skip Age.
+        if (isFlatType(state.leadType)) state.ageBandId = getBands()[0].id;
+        // Keep the quantity inside the product's range: Business Owner starts
+        // at its first preset (35,000) if the cart is under its $100 minimum;
+        // other products are capped back to 100,000.
+        if (!meetsProductMinimum()) state.quantity = BUSINESS_OWNER_PRESETS[0];
+        state.quantity = Math.min(state.quantity, maxQtyFor(state.leadType));
+        syncQtyInput();
         saveDraft();
         updatePreview();
         updateNav();
@@ -975,7 +1171,8 @@
     qtyInput.addEventListener("input", () => {
       let v = parseInt(qtyInput.value, 10);
       if (isNaN(v) || v < 1) v = 1;
-      if (v > MAX_QTY) v = MAX_QTY;
+      const cap = maxQtyFor(state.leadType);
+      if (v > cap) v = cap;
       state.quantity = v;
       saveDraft();
       updatePreview();
@@ -989,12 +1186,12 @@
     });
 
     document.getElementById("qty-minus").addEventListener("click", () => {
-      state.quantity = Math.max(1, state.quantity - 1);
+      state.quantity = Math.max(productMinQty(), state.quantity - 1);
       qtyInput.value = state.quantity;
       qtyInput.dispatchEvent(new Event("input"));
     });
     document.getElementById("qty-plus").addEventListener("click", () => {
-      state.quantity = Math.min(MAX_QTY, state.quantity + 1);
+      state.quantity = Math.min(maxQtyFor(state.leadType), state.quantity + 1);
       qtyInput.value = state.quantity;
       qtyInput.dispatchEvent(new Event("input"));
     });
@@ -1050,13 +1247,13 @@
     // Nav
     document.getElementById("btn-next").addEventListener("click", () => {
       if (!validateStep()) return;
-      if (state.step < TOTAL_STEPS) showStep(state.step + 1);
+      if (state.step < TOTAL_STEPS) showStep(nextStepFrom(state.step));
     });
     document.getElementById("btn-back").addEventListener("click", () => {
       if (state.step <= 1 || state.paid) return;
       // Leaving States — clear sticky collapse before paint
       if (state.step === 4) resetChromeClasses();
-      showStep(state.step - 1);
+      showStep(prevStepFrom(state.step));
     });
 
     // Contact methods (checkout)
@@ -1091,7 +1288,13 @@
     // If draft had invalid age for type (e.g. a retired band id such as
     // ph-90-180 / lm-90 from a cart saved before 2026-09-25), clear it and
     // send the buyer back to the Age step to pick a current band.
-    if (state.leadType && state.ageBandId) {
+    if (state.leadType && isFlatType(state.leadType)) {
+      // Business Owner: single flat band, no Age step; a saved cart under the
+      // $100 minimum goes back to the Quantity step.
+      state.ageBandId = getBands()[0].id;
+      if (state.step === 2) state.step = 3;
+      if (state.step > 3 && !meetsProductMinimum()) state.step = 3;
+    } else if (state.leadType && state.ageBandId) {
       if (!getBands().some((b) => b.id === state.ageBandId)) {
         state.ageBandId = null;
         if (state.step > 2) state.step = 2;

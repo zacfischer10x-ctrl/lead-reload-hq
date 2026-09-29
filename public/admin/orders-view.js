@@ -65,6 +65,11 @@
     return (o && (o.stripePaymentIntentId || o.stripeInvoiceId)) || "";
   }
 
+  /** "record" for Business Owner Raw Data, "lead" for everything else. */
+  function unitNoun(o) {
+    return meta(o).leadType === "business-owner" ? "record" : "lead";
+  }
+
   function fulfillmentStatus(o) {
     const s = o && o.fulfillmentStatus;
     if (s === "New" || s === "In progress" || s === "Completed") return s;
@@ -129,6 +134,7 @@
     amountDecimal,
     paymentRef,
     fulfillmentStatus,
+    unitNoun,
     kindOf,
     csvCell,
     toCsv,

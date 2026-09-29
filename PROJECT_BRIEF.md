@@ -106,8 +106,8 @@ netlify/functions/          Serverless functions
                             (fulfillment status model, filters, idempotent order upsert),
                             pricing.js (server-side price table — must match public/app.js)
 scripts/                    test-pricing.js, test-webhook.js, test-portal.js, test-probe.js,
-                            test-admin-auth.js, test-renewals.js, test-fulfillment.js
-                            (`npm test`, no deps)
+                            test-admin-auth.js, test-renewals.js, test-fulfillment.js,
+                            test-bizowner.js (`npm test`, no deps)
 netlify.toml                Build settings, /api/* → functions redirect, /admin redirect, security headers
 package.json                Deps: stripe, @netlify/blobs
 .env.example                Placeholder env var names only (real values live in Netlify)
@@ -127,13 +127,14 @@ Do not change these without asking Dan/Zac first.
 1. **HQ branding** — "Lead Reload HQ" in the header (logo + **HQ badge**), page `<title>`/meta, and footer.
 2. **Hero messaging** — spend-on-workflow positioning stays, in neutral wording ("aged insurance leads", "lead data"). **Leads are NOT exclusive. Public copy makes no claims of exclusivity, opt-in, consent, permission, compliance, verification, or sourcing** (Dan, 2026-09-28). Check with `scripts/live-copy-check.sh` after deploys.
 3. **Quantity presets** — **2,500 / 5,000 / 10,000** volume chips.
-4. **Orders are NOT capped at 1,000** — custom quantities up to **100,000**. Copy says "Large orders welcome, up to 100,000 leads per order"; there are **no volume discounts or tiers**, so don't imply any.
+4. **Orders are NOT capped at 1,000** — custom quantities up to **100,000** (Business Owner Raw Data: up to 1,000,000 records). Copy says "Large orders welcome, up to 100,000 leads per order"; there are **no volume discounts or tiers**, so don't imply any.
 5. **Billing** — **one-time + weekly + monthly** on one cart.
 6. **Payments architecture** — **dynamic Stripe Checkout Sessions** + **Stripe Customer Portal** (currently **disabled** for security; customers reply to their receipt email or contact us to cancel/change) + **webhooks** into a thin admin. **Not** Stripe Payment Links.
 7. **Pricing** — flat unit price per lead type × age band × quantity (2026-09-25). Both lead types use 5 age bands: Under 30, 30–60, 60–90, 90–365, 365+ days.
    - General Life / Mortgage Protection: $0.52 / $0.39 / $0.20 / $0.10 / $0.03
    - Private Health: $0.52 / $0.33 / $0.26 / $0.13 / $0.03 (90–365 at $0.13 confirmed by Dan 2026-09-25; constant `PRIVATE_HEALTH_90_365` in `lib/pricing.js` and `public/app.js` — keep both in sync)
-   - $0.50 minimum order (Stripe). Server table `netlify/functions/lib/pricing.js` is what Stripe charges; `public/app.js` must match (`npm test`).
+   - Business Owner Raw Data (2026-09-28, repriced by Dan that evening): $0.003 per record ($30 per 10k), no age band (the wizard skips the Age step); totals round up to the next whole cent; **$100 minimum order** on the raw total (33,334 records or more; server 400 `below_minimum`, Continue / Pay disabled on the page); **max 1,000,000 records** per order (other products stay at 100,000); its own presets 35,000 / 50,000 / 100,000 / 250,000. Constant `BUSINESS_OWNER_PER_RECORD` plus `minOrderCents` / `maxQty` in both files.
+   - $0.50 minimum order (Stripe) for the lead products; Business Owner Raw Data has its own $100 minimum. Server table `netlify/functions/lib/pricing.js` is what Stripe charges; `public/app.js` must match (`npm test`).
 
 ---
 
