@@ -2,7 +2,7 @@
 
 const { json, options, parseBody, siteUrl } = require("./lib/http");
 const { getStripe, stripeConfigured } = require("./lib/stripe-client");
-const { MAX_QTY, BILLING_CADENCES, quote } = require("./lib/pricing");
+const { BILLING_CADENCES, quote, isFlatType, maxQtyFor } = require("./lib/pricing");
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return options();
@@ -41,10 +41,15 @@ exports.handler = async (event) => {
 
   const qty = Number(quantity);
 
-  if (!leadType || !ageBandId || !email || !String(email).includes("@")) {
+  // Flat-priced products (Business Owner) have no age band, so ageBandId may
+  // be omitted for them; lib/pricing.js still rejects a wrong band id.
+  const needsBand = !isFlatType(leadType);
+  if (!leadType || (needsBand && !ageBandId) || !email || !String(email).includes("@")) {
     return json(400, { ok: false, reason: "invalid_cart" });
   }
-  if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) {
+  // Per-product cap: 100,000 (MAX_QTY) for lead products, 1,000,000 for
+  // Business Owner Raw Data (lib/pricing.js maxQtyFor).
+  if (!Number.isInteger(qty) || qty < 1 || qty > maxQtyFor(leadType)) {
     return json(400, { ok: false, reason: "invalid_quantity" });
   }
   if (!Object.prototype.hasOwnProperty.call(BILLING_CADENCES, billingCadence)) {
@@ -57,14 +62,23 @@ exports.handler = async (event) => {
   // Server-side pricing: unknown leadType / ageBandId combos → 400.
   const priced = quote({ leadType, ageBandId, quantity: qty, billingCadence });
   if (!priced.ok) {
-    return json(400, { ok: false, reason: priced.reason });
+    const err = { ok: false, reason: priced.reason };
+    // below_minimum tells the page the minimum (Business Owner: $100 / 33,334 records).
+    if (priced.reason === "below_minimum") {
+      err.minOrderCents = priced.minOrderCents;
+      err.minQuantity = priced.minQuantity;
+    }
+    return json(400, err);
   }
   const amountCents = priced.amountCents;
 
   const stripe = getStripe();
   const origin = siteUrl(event);
-  const productName = `Lead Reload HQ — ${priced.leadTypeLabel} (${priced.ageBandLabel})`;
-  const description = `${qty.toLocaleString("en-US")} leads · ${states.join(",")}`;
+  const productName = priced.flat
+    ? `Lead Reload HQ — ${priced.leadTypeLabel} ($${priced.unitPrice} per ${priced.unit})`
+    : `Lead Reload HQ — ${priced.leadTypeLabel} (${priced.ageBandLabel})`;
+  const description = `${qty.toLocaleString("en-US")} ${priced.unit}s · ${states.join(",")}`;
+  const buyerEmail = String(email).trim().slice(0, 200);
 
   const metadata = {
     leadType: priced.leadType,
@@ -88,7 +102,7 @@ exports.handler = async (event) => {
   try {
     const sessionParams = {
       mode: priced.mode,
-      customer_email: String(email).trim().slice(0, 200),
+      customer_email: buyerEmail,
       success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?checkout=cancel`,
       metadata,

@@ -11,9 +11,11 @@
  *    `const LEAD_TYPES` down to the "Render helpers" marker: price tables,
  *    state, unitPrice(), orderTotal(), money(), formatCadenceTotal()) into a
  *    sandbox and drives it like the wizard does.
- * 2. For every lead type × age band, every quantity 1..100,000 and every
- *    billing cadence, asserts the server table (netlify/functions/lib/pricing.js)
- *    produces exactly the total the storefront displays.
+ * 2. For every lead type × age band, every quantity 1..the product cap
+ *    (100,000; Business Owner Raw Data 1,000,000) and every billing cadence,
+ *    asserts the server table (netlify/functions/lib/pricing.js) produces
+ *    exactly the total the storefront displays, and that both sides agree on
+ *    the Business Owner $100 minimum (below_minimum under 33,334 records).
  * 3. Asserts the table is exactly Dan's 2026-09-25 price list (same 5 age
  *    bands for both lead types; the Private Health 90–365 price comes
  *    from the single PRIVATE_HEALTH_90_365 constant, which must be
@@ -52,7 +54,7 @@ function loadFrontendPricing() {
   const code =
     '"use strict";\n' +
     block +
-    "\n;({ LEAD_TYPES, PRICING, PRIVATE_HEALTH_90_365, BILLING_OPTIONS, MAX_QTY, MIN_ORDER_CENTS, state, getBands, getSelectedBand, unitPrice, orderTotal, money, formatCadenceTotal });";
+    "\n;({ LEAD_TYPES, PRICING, PRIVATE_HEALTH_90_365, BUSINESS_OWNER_PER_RECORD, BILLING_OPTIONS, MAX_QTY, MIN_ORDER_CENTS, state, getBands, getSelectedBand, maxQtyFor, productMinQty, meetsProductMinimum, unitPrice, orderCents, orderTotal, money, formatUnitPrice, formatCadenceTotal });";
   // localStorage/document are only touched by functions we never call.
   return vm.runInNewContext(code, {}, { filename: "public/app.js#pricing-block" });
 }
@@ -72,6 +74,18 @@ check(
   "billing cadence ids differ"
 );
 check(fe.MAX_QTY === pricing.MAX_QTY, `MAX_QTY differs: ${fe.MAX_QTY} vs ${pricing.MAX_QTY}`);
+check(pricing.MAX_QTY === 100000, "default cap stays 100,000");
+for (const typeId of Object.keys(pricing.LEAD_TYPES)) {
+  check(fe.maxQtyFor(typeId) === pricing.maxQtyFor(typeId), `max qty differs for ${typeId}`);
+  check(
+    (fe.LEAD_TYPES[typeId].minOrderCents || 0) === pricing.minOrderCentsFor(typeId),
+    `product minimum differs for ${typeId}`
+  );
+}
+check(pricing.maxQtyFor("business-owner") === 1000000, "Business Owner cap 1,000,000");
+for (const typeId of ["general-life", "mortgage-protection", "private-health"]) {
+  check(pricing.maxQtyFor(typeId) === 100000 && pricing.minOrderCentsFor(typeId) === 0, `${typeId} cap/minimum unchanged`);
+}
 check(
   fe.MIN_ORDER_CENTS === pricing.MIN_AMOUNT_CENTS,
   `minimum order differs: frontend ${fe.MIN_ORDER_CENTS} vs server ${pricing.MIN_AMOUNT_CENTS}`
@@ -138,23 +152,38 @@ for (const typeId of feTypeIds) {
     check(!!beBand, `server missing ${typeId}/${feBand.id}`);
     check(beBand.label === feBand.label, `band label differs ${typeId}/${feBand.id}`);
     check(
-      fe.money(fe.unitPrice()) === "$" + pricing.centsToDollarString(beBand.unitCents),
-      `unit price differs ${typeId}/${feBand.id}: ${fe.money(fe.unitPrice())} vs ${beBand.unitCents}c`
+      fe.formatUnitPrice(fe.unitPrice()) === "$" + pricing.unitPriceString(beBand),
+      `unit price differs ${typeId}/${feBand.id}: ${fe.formatUnitPrice(fe.unitPrice())} vs ${beBand.unitMills} mills`
     );
-    rows.push([beType.label, feBand.id, feBand.label, fe.money(fe.unitPrice())]);
+    if (!beBand.flat) {
+      check(fe.money(fe.unitPrice()) === "$" + pricing.centsToDollarString(beBand.unitCents), `whole-cent unit ${typeId}/${feBand.id}`);
+    }
+    rows.push([beType.label, feBand.id, feBand.label, fe.formatUnitPrice(fe.unitPrice())]);
 
     let firstChargeable = null;
-    for (let q = 1; q <= pricing.MAX_QTY; q++) {
+    const cap = pricing.maxQtyFor(typeId);
+    check(fe.productMinQty() === pricing.minQtyFor(typeId), `min qty differs for ${typeId}`);
+    for (let q = 1; q <= cap; q++) {
       fe.state.quantity = q;
       fe.state.billingCadence = "one-time";
       const shown = fe.money(fe.orderTotal());
       const quoted = pricing.quote({ leadType: typeId, ageBandId: feBand.id, quantity: q, billingCadence: "one-time" });
-      const expectedCents = beBand.unitCents * q;
+      // Whole-cent bands: exactly unit cents × qty (unchanged). Flat sub-cent
+      // Business Owner: ceil(0.2¢ × qty) — see test-bizowner.js.
+      const expectedCents = beBand.flat ? Math.ceil((beBand.unitMills * q) / 10) : beBand.unitCents * q;
+      assert.strictEqual(pricing.amountCentsFor(beBand, q), expectedCents, `server cents ${typeId}/${feBand.id} q=${q}`);
       // Displayed total must equal server cents regardless of whether Stripe accepts it.
       assert.strictEqual(shown, "$" + pricing.centsToDollarString(expectedCents), `display mismatch ${typeId}/${feBand.id} q=${q}`);
-      // Legacy server math (Math.round(unit × qty × 100)) must equal the new integer math.
-      assert.strictEqual(Math.round(fe.unitPrice() * q * 100), expectedCents, `legacy cents mismatch ${typeId}/${feBand.id} q=${q}`);
-      if (expectedCents < pricing.MIN_AMOUNT_CENTS) {
+      if (!beBand.flat) {
+        // Legacy server math (Math.round(unit × qty × 100)) must equal the new integer math.
+        assert.strictEqual(Math.round(fe.unitPrice() * q * 100), expectedCents, `legacy cents mismatch ${typeId}/${feBand.id} q=${q}`);
+      }
+      const meetsMin = pricing.meetsProductMinimum(typeId, beBand, q);
+      assert.strictEqual(fe.meetsProductMinimum(), meetsMin, `storefront/server product minimum differ ${typeId} q=${q}`);
+      if (!meetsMin) {
+        assert.strictEqual(quoted.ok, false);
+        assert.strictEqual(quoted.reason, "below_minimum", `${typeId} q=${q}`);
+      } else if (expectedCents < pricing.MIN_AMOUNT_CENTS) {
         assert.strictEqual(quoted.ok, false);
         assert.strictEqual(quoted.reason, "amount_too_small");
       } else {
@@ -164,17 +193,26 @@ for (const typeId of feTypeIds) {
       }
       qtyChecks++;
     }
+    // One past the product cap is rejected.
+    const over = pricing.quote({ leadType: typeId, ageBandId: feBand.id, quantity: cap + 1, billingCadence: "one-time" });
+    check(!over.ok && over.reason === "invalid_quantity", `${typeId} q=${cap + 1} must be invalid_quantity`);
     if (firstChargeable > 1) {
-      belowMinimum.push(`${typeId}/${feBand.id} (${fe.money(fe.unitPrice())}): qty ${firstChargeable === 2 ? "1" : "1–" + (firstChargeable - 1)} → amount_too_small`);
+      const why = pricing.minOrderCentsFor(typeId) ? "below_minimum ($100 product minimum)" : "amount_too_small";
+      belowMinimum.push(`${typeId}/${feBand.id} (${fe.formatUnitPrice(fe.unitPrice())}): qty ${firstChargeable === 2 ? "1" : "1–" + (firstChargeable - 1).toLocaleString("en-US")} → ${why}`);
     }
 
     // Cadence: same total per bill, correct Stripe mode/interval, same display.
-    for (const q of [1, 17, 50, 100, 250, 999, 1000, 2500, 5000, 10000, 33333, 100000]) {
+    for (const q of [1, 17, 50, 100, 250, 999, 1000, 2500, 5000, 10000, 33333, 33334, 35000, 50000, 100000, 250000, 1000000]) {
+      if (q > pricing.maxQtyFor(typeId)) continue;
       for (const cadence of Object.keys(pricing.BILLING_CADENCES)) {
         fe.state.quantity = q;
         fe.state.billingCadence = cadence;
         const quoted = pricing.quote({ leadType: typeId, ageBandId: feBand.id, quantity: q, billingCadence: cadence });
-        const expectedCents = beBand.unitCents * q;
+        const expectedCents = pricing.amountCentsFor(beBand, q);
+        if (!pricing.meetsProductMinimum(typeId, beBand, q)) {
+          check(!quoted.ok && quoted.reason === "below_minimum", `below_minimum ${typeId} q=${q} ${cadence}`);
+          continue;
+        }
         if (expectedCents < pricing.MIN_AMOUNT_CENTS) {
           check(!quoted.ok && quoted.reason === "amount_too_small", "min amount");
           continue;
@@ -343,12 +381,12 @@ handlerTests()
   .then(() => {
     console.log("Price table (server = storefront):");
     for (const [type, id, label, price] of rows) {
-      console.log(`  ${type.padEnd(20)} ${id.padEnd(11)} ${label.padEnd(14)} ${price} / lead`);
+      console.log(`  ${type.padEnd(20)} ${id.padEnd(11)} ${label.padEnd(14)} ${price} / ${id === "bo-flat" ? "record" : "lead"}`);
     }
     console.log(`\nPrivate Health 90–365 (PRIVATE_HEALTH_90_365): $${pricing.PRIVATE_HEALTH_90_365.toFixed(2)} (storefront and server match)`);
     console.log(`Combos checked: ${comboCount} (lead type × age band)`);
-    console.log(`Quantities checked per combo: 1..${pricing.MAX_QTY} (${qtyChecks.toLocaleString("en-US")} totals)`);
-    console.log("Below Stripe $0.50 minimum (storefront shows a total, server returns 400 amount_too_small):");
+    console.log(`Quantities checked per combo: 1..${pricing.MAX_QTY.toLocaleString("en-US")} (Business Owner Raw Data 1..${pricing.maxQtyFor("business-owner").toLocaleString("en-US")}) (${qtyChecks.toLocaleString("en-US")} totals)`);
+    console.log("Below a minimum (storefront shows a total and blocks Continue; server returns 400):");
     for (const b of belowMinimum) console.log("  " + b);
     console.log(`\nPASS — ${passed.toLocaleString("en-US")} assertions`);
   })

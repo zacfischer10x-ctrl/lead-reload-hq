@@ -2,7 +2,7 @@
 
 > **Read this first.** Anyone (human or agent) changing this repo must read this brief before touching anything, and follow the [Working rules](#working-rules) at the bottom.
 
-_Last updated: 2026-09-26 (ET)_
+_Last updated: 2026-09-28 (ET)_
 
 ---
 
@@ -26,6 +26,13 @@ _Last updated: 2026-09-26 (ET)_
 - Invite/recovery/confirmation email links land on the site root (`/#invite_token=…`); `public/identity-redirect.js` forwards them to `/admin/`, where the widget shows the set-password screen and then the admin.
 - To change who has admin: edit `ADMIN_EMAILS`, run `npm test`, merge, then invite/remove the user under Netlify → Identity. Both steps are needed.
 - The old username/password gate (`ADMIN_DAN_PASSWORD`, `ADMIN_ZAC_PASSWORD`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, cookie `lr_admin_session`) was removed on 2026-09-26. The code no longer reads those env vars; delete them from Netlify once the Identity admin is verified live.
+
+### Order fulfillment (2026-09-28)
+
+- Every row in the `lr-orders` blob store is one order to fulfill: `kind` **one-time** (checkout, key = session id), **subscription** (the first paid period of a weekly/monthly checkout, key = session id), or **renewal** (each later paid subscription invoice, key = invoice id, with lead type / age band / quantity / states copied from the subscription metadata).
+- The first invoice of a subscription (`billing_reason: subscription_create`) does **not** get its own row; the checkout's subscription row already covers it. Stripe retries hit the same key and keep the admin's status, so nothing is duplicated or reset.
+- Fulfillment fields: `fulfillmentStatus` (`New` | `In progress` | `Completed`, default New), `completedAt` / `completedBy` (admin Identity email), `statusUpdatedAt` / `statusUpdatedBy`. Rows without them read as New (legacy `status: "fulfilled"` reads as Completed). Nothing is migrated in storage.
+- `/admin/` → Orders: Open / Completed / All and All types / One-time / Subscription filters, one-tap **Mark completed**, In progress / Reopen, and **Export CSV** of the rows on screen (formula-safe). Model and rules: `netlify/functions/lib/orders.js`.
 
 ---
 
@@ -71,8 +78,9 @@ Do not add AAAA records on `@` (breaks Netlify SSL).
 public/                     Static storefront (publish dir)
   index.html, app.js,       Order wizard, cart, pricing, Stripe checkout call
   styles.css, lead-reload-logo.png
-  admin/                    Thin invite-only admin UI (index.html, admin.js, admin.css);
-                            signs in with the Netlify Identity widget
+  admin/                    Thin invite-only admin UI (index.html, admin.js, admin.css,
+                            orders-view.js = order labels + CSV export); signs in with the
+                            Netlify Identity widget
   identity-redirect.js      Forwards Identity email links (#invite_token= etc.) from / to /admin/
 netlify/functions/          Serverless functions
   create-checkout.js        Builds a dynamic Stripe Checkout Session with price_data, priced
@@ -83,17 +91,23 @@ netlify/functions/          Serverless functions
                             "Payments coming online tonight".
   stripe-webhook.js         Verifies Stripe signature (required; no secret → 503, bad/missing
                             signature → 400); stores orders/subscriptions in Netlify Blobs.
+                            One order row per paid checkout and per renewal invoice
+                            (subscription_create invoices skipped: the checkout row covers them).
   create-portal.js          DISABLED 2026-09-25 (403 portal_disabled) until it sits behind
                             admin login or a signed customer session.
   admin-me.js               Who am I: 200 {email} for an allowlisted Identity user, else 401/403.
-  admin-orders.js           Lists orders (admin only).
+  admin-orders.js           Lists orders (admin only); ?status=all|open|completed
+                            &type=all|one-time|subscription, plus counts.
   admin-subscriptions.js    Lists subscriptions (admin only).
-  admin-fulfill.js          Marks an order fulfilled (admin only).
+  admin-fulfill.js          Sets fulfillment status (admin only): action complete|start|reopen
+                            or status New|In progress|Completed; stamps completedAt/completedBy.
   lib/                      Shared helpers: auth.js (Identity user + ADMIN_EMAILS), blobs.js,
-                            http.js (JSON/CORS/SITE_URL), stripe-client.js,
+                            http.js (JSON/CORS/SITE_URL), stripe-client.js, orders.js
+                            (fulfillment status model, filters, idempotent order upsert),
                             pricing.js (server-side price table — must match public/app.js)
 scripts/                    test-pricing.js, test-webhook.js, test-portal.js, test-probe.js,
-                            test-admin-auth.js (`npm test`, no deps)
+                            test-admin-auth.js, test-renewals.js, test-fulfillment.js,
+                            test-bizowner.js (`npm test`, no deps)
 netlify.toml                Build settings, /api/* → functions redirect, /admin redirect, security headers
 package.json                Deps: stripe, @netlify/blobs
 .env.example                Placeholder env var names only (real values live in Netlify)
@@ -113,13 +127,14 @@ Do not change these without asking Dan/Zac first.
 1. **HQ branding** — "Lead Reload HQ" in the header (logo + **HQ badge**), page `<title>`/meta, and footer.
 2. **Hero messaging** — spend-on-workflow positioning stays, in neutral wording ("aged insurance leads", "lead data"). **Leads are NOT exclusive. Public copy makes no claims of exclusivity, opt-in, consent, permission, compliance, verification, or sourcing** (Dan, 2026-09-28). Check with `scripts/live-copy-check.sh` after deploys.
 3. **Quantity presets** — **2,500 / 5,000 / 10,000** volume chips.
-4. **Orders are NOT capped at 1,000** — custom quantities up to **100,000**. Copy says "Large orders welcome, up to 100,000 leads per order"; there are **no volume discounts or tiers**, so don't imply any.
+4. **Orders are NOT capped at 1,000** — custom quantities up to **100,000** (Business Owner Raw Data: up to 1,000,000 records). Copy says "Large orders welcome, up to 100,000 leads per order"; there are **no volume discounts or tiers**, so don't imply any.
 5. **Billing** — **one-time + weekly + monthly** on one cart.
 6. **Payments architecture** — **dynamic Stripe Checkout Sessions** + **Stripe Customer Portal** (currently **disabled** for security; customers reply to their receipt email or contact us to cancel/change) + **webhooks** into a thin admin. **Not** Stripe Payment Links.
 7. **Pricing** — flat unit price per lead type × age band × quantity (2026-09-25). Both lead types use 5 age bands: Under 30, 30–60, 60–90, 90–365, 365+ days.
    - General Life / Mortgage Protection: $0.52 / $0.39 / $0.20 / $0.10 / $0.03
    - Private Health: $0.52 / $0.33 / $0.26 / $0.13 / $0.03 (90–365 at $0.13 confirmed by Dan 2026-09-25; constant `PRIVATE_HEALTH_90_365` in `lib/pricing.js` and `public/app.js` — keep both in sync)
-   - $0.50 minimum order (Stripe). Server table `netlify/functions/lib/pricing.js` is what Stripe charges; `public/app.js` must match (`npm test`).
+   - Business Owner Raw Data (2026-09-28, repriced by Dan that evening): $0.003 per record ($30 per 10k), no age band (the wizard skips the Age step); totals round up to the next whole cent; **$100 minimum order** on the raw total (33,334 records or more; server 400 `below_minimum`, Continue / Pay disabled on the page); **max 1,000,000 records** per order (other products stay at 100,000); its own presets 35,000 / 50,000 / 100,000 / 250,000. Constant `BUSINESS_OWNER_PER_RECORD` plus `minOrderCents` / `maxQty` in both files.
+   - $0.50 minimum order (Stripe) for the lead products; Business Owner Raw Data has its own $100 minimum. Server table `netlify/functions/lib/pricing.js` is what Stripe charges; `public/app.js` must match (`npm test`).
 
 ---
 

@@ -35,6 +35,7 @@ Without `STRIPE_SECRET_KEY`, Pay shows **Payments coming online tonight**.
 - Presets keep gold volume chips **2,500 / 5,000 / 10,000**
 - Callout: buyers are **not capped at 1,000**; custom qty up to **100,000**; same per-lead price at any quantity (no volume discounts)
 - Age bands (both lead types): Under 30, 30–60, 60–90, 90–365, 365+ days — prices in `STRIPE_SETUP.md`
+- **Business Owner Raw Data**: $0.003/record ($30 per 10k), no age band (Age step skipped), **$100 minimum** order (33,334 records or more, checked on the raw total; server 400 `below_minimum`), up to 1,000,000 records per order, own presets 35,000 / 50,000 / 100,000 / 250,000 ($105 / $150 / $300 / $750); totals round up to the next whole cent. Other products keep presets 50 … 10,000 and the 100,000 cap
 - Hero keeps spend-on-workflow messaging in neutral wording ("aged insurance leads", "lead data") — see `PROJECT_BRIEF.md` locked decision 2
 - Billing: one-time / weekly / monthly (`billingCadence`)
 
@@ -42,7 +43,9 @@ Without `STRIPE_SECRET_KEY`, Pay shows **Payments coming online tonight**.
 
 `/admin/` signs in with **Netlify Identity** (invite-only, no public signup). Only the emails in `ADMIN_EMAILS` (`netlify/functions/lib/auth.js`) get in: `dwhigham94@gmail.com` (Dan) and `zacfischer10x@gmail.com` (Zac). Admin functions return 401 without a signed-in Identity user and 403 for any other email. Invite links that land on `/` are forwarded to `/admin/` by `public/identity-redirect.js`. Details: `PROJECT_BRIEF.md` → Admin access summary.
 
-`npm test` runs every suite, including `scripts/test-admin-auth.js` (401 / 403 / allowed for each admin function).
+**Orders / fulfillment:** the Orders tab lists every paid order to fulfill (one-time, new subscription, and each renewal invoice) with Open / Completed / All and All types / One-time / Subscription filters, a one-tap **Mark completed** (plus In progress / Reopen), and **Export CSV** of the filtered rows. Status fields: `fulfillmentStatus`, `completedAt`, `completedBy`, `statusUpdatedAt`, `statusUpdatedBy` (`netlify/functions/lib/orders.js`).
+
+`npm test` runs every suite, including `scripts/test-admin-auth.js` (401 / 403 / allowed for each admin function), `scripts/test-renewals.js` (renewal rows, first-invoice dedupe, retry idempotency) `scripts/test-fulfillment.js` (status transitions, filters, CSV escaping) and `scripts/test-bizowner.js` (Business Owner pricing, $100 minimum, presets × cadences, rounding, 1,000,000 cap, storefront).
 
 ## Deploy
 

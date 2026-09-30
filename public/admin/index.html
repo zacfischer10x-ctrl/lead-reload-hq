@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=20260926id" />
+  <link rel="stylesheet" href="admin.css?v=20260929bo" />
   <!-- Netlify Identity: sign-in, invite accept (set password), password reset -->
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
@@ -45,22 +45,31 @@
       <div class="dash-head">
         <div>
           <h1>Operations desk</h1>
-          <p class="muted">One-time orders and active subscriptions. Empty until Stripe webhooks land.</p>
+          <p class="muted">Every paid order to fulfill: one-time orders, new subscriptions, and each subscription renewal. Rows appear when Stripe webhooks land.</p>
         </div>
         <button type="button" class="btn ghost" id="refresh-btn">Refresh</button>
       </div>
 
       <div class="tabs" role="tablist">
-        <button type="button" class="tab active" data-tab="orders">Open / fulfilled orders</button>
+        <button type="button" class="tab active" data-tab="orders">Orders</button>
         <button type="button" class="tab" data-tab="subs">Subscriptions</button>
       </div>
 
       <div id="orders-view">
-        <div class="filters">
-          <label><input type="radio" name="orderFilter" value="open" checked /> Open</label>
-          <label><input type="radio" name="orderFilter" value="fulfilled" /> Fulfilled</label>
-          <label><input type="radio" name="orderFilter" value="all" /> All</label>
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="Fulfillment status" id="status-filter">
+            <button type="button" class="seg-btn active" data-status="open" aria-pressed="true">Open <span class="count" id="count-open"></span></button>
+            <button type="button" class="seg-btn" data-status="completed" aria-pressed="false">Completed <span class="count" id="count-completed"></span></button>
+            <button type="button" class="seg-btn" data-status="all" aria-pressed="false">All <span class="count" id="count-all"></span></button>
+          </div>
+          <div class="seg" role="group" aria-label="Order type" id="type-filter">
+            <button type="button" class="seg-btn active" data-type="all" aria-pressed="true">All types</button>
+            <button type="button" class="seg-btn" data-type="one-time" aria-pressed="false">One-time</button>
+            <button type="button" class="seg-btn" data-type="subscription" aria-pressed="false">Subscription</button>
+          </div>
+          <button type="button" class="btn ghost export-btn" id="export-btn">Export CSV</button>
         </div>
+        <p class="toast hidden" id="orders-toast" role="status" aria-live="polite"></p>
         <div id="orders-list" class="list"></div>
       </div>
 
@@ -72,6 +81,7 @@
     </section>
   </main>
 
-  <script src="admin.js?v=20260926id"></script>
+  <script src="orders-view.js?v=20260929bo"></script>
+  <script src="admin.js?v=20260929bo"></script>
 </body>
 </html>

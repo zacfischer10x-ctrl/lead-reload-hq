@@ -112,3 +112,79 @@ code { font-size: .85em; color: var(--gold-200); }
 .signed-in::before { content: "Signed in as "; color: var(--text-muted); font-weight: 500; }
 
 .muted.small { font-size: .82rem; margin-top: .9rem; }
+
+/* ---- Orders: fulfillment tracking (2026-09-28) ---- */
+.toolbar { display: flex; flex-wrap: wrap; gap: .6rem .75rem; align-items: center; margin-bottom: .85rem; }
+.seg {
+  display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px;
+  border: 1px solid var(--border); background: rgba(19,32,56,.6);
+}
+.seg-btn {
+  border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: .86rem;
+  padding: .42rem .8rem; border-radius: 999px; cursor: pointer; white-space: nowrap; min-height: 36px;
+}
+.seg-btn.active { color: #1a1204; background: linear-gradient(160deg, var(--gold-300), var(--gold-400)); font-weight: 700; }
+.seg-btn .count { font-size: .74rem; opacity: .8; margin-left: .15rem; }
+.seg-btn .count:empty { display: none; }
+.export-btn { margin-left: auto; }
+.btn.sm { padding: .42rem .85rem; font-size: .84rem; min-height: 36px; }
+.toast {
+  margin: 0 0 .75rem; padding: .6rem .85rem; border-radius: 10px; font-size: .88rem;
+  border: 1px solid rgba(61,214,140,.35); background: rgba(61,214,140,.1); color: var(--success);
+}
+.toast.error { border-color: rgba(255,107,122,.4); background: rgba(255,107,122,.1); color: var(--danger); }
+
+.order-row { cursor: default; }
+.row-email { overflow-wrap: anywhere; }
+.order-line { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; }
+.amount { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+.kind-pill {
+  font-size: .72rem; font-weight: 700; padding: .16rem .5rem; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--text-muted); background: rgba(154,168,192,.08);
+}
+.kind-pill.kind-subscription { color: #9cc3ff; border-color: rgba(120,170,255,.35); background: rgba(90,140,230,.12); }
+.kind-pill.kind-renewal { color: #c5b3ff; border-color: rgba(170,150,255,.35); background: rgba(140,110,240,.12); }
+.ids { display: flex; flex-wrap: wrap; gap: .3rem .5rem; }
+.id-chip {
+  display: inline-flex; gap: .3rem; align-items: baseline; max-width: 100%;
+  font-size: .74rem; color: var(--text-muted);
+}
+.id-chip code { color: var(--gold-200); font-size: .72rem; overflow-wrap: anywhere; }
+.id-label { text-transform: uppercase; letter-spacing: .05em; font-size: .64rem; font-weight: 700; }
+.id-short { display: none; }
+.done-line { font-size: .8rem; color: var(--success); }
+.done-line.progress { color: #9cc3ff; }
+.row-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .25rem; }
+.badge { white-space: nowrap; }
+.badge.st-new { color: var(--gold-300); background: var(--gold-muted); border-color: var(--border-strong); }
+.badge.st-progress { color: #9cc3ff; border-color: rgba(120,170,255,.4); background: rgba(90,140,230,.14); }
+.badge.st-done { color: var(--success); border-color: rgba(61,214,140,.35); background: rgba(61,214,140,.12); }
+.detail-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+.detail-head h2 { margin: 0; }
+.status-set { display: flex; flex-wrap: wrap; gap: .45rem; }
+.status-set .btn:disabled { opacity: 1; cursor: default; }
+
+.order-info { display: grid; gap: .35rem; min-width: 0; }
+@media (min-width: 900px) {
+  .order-row { grid-template-columns: minmax(0, 1fr) auto; column-gap: 1.25rem; align-items: center; }
+  .order-row > .row-actions { flex-direction: column; align-items: stretch; margin-top: 0; min-width: 150px; }
+}
+
+@media (max-width: 640px) {
+  .dash-head { flex-direction: row; align-items: flex-start; }
+  .dash-head h1 { font-size: 1.25rem; }
+  .toolbar { gap: .5rem; }
+  .seg { width: 100%; }
+  .seg-btn { flex: 1 1 0; padding: .45rem .4rem; font-size: .82rem; }
+  .export-btn { margin-left: 0; width: 100%; }
+  .id-full { display: none; }
+  .id-short { display: inline; }
+  .row-actions .btn { flex: 1 1 auto; min-height: 42px; }
+  .order-row { padding: .85rem .85rem; }
+  .brand img { height: 32px; }
+  .hq-badge, .top-right .btn { white-space: nowrap; }
+  .top-right .btn { padding: .45rem .8rem; }
+}
+@media (max-width: 480px) {
+  .signed-in { display: none !important; }
+}

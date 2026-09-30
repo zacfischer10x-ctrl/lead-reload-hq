@@ -316,7 +316,8 @@ body {
 }
 
 @media (min-width: 560px) {
-  .type-grid { grid-template-columns: repeat(3, 1fr); }
+  /* 4 products (incl. Business Owner Raw Data) → 2 × 2 */
+  .type-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 .type-card {
@@ -1497,3 +1498,33 @@ body.condense-chrome .hq-badge {
   padding: 0.22rem 0.42rem;
 }
 
+
+/* ——— Business Owner Raw Data (flat price, no age band) ——— */
+.wizard-progress li.step-na {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.type-card .type-min-badge {
+  display: inline-block;
+  margin: 0.55rem 0 0;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--gold-muted);
+  color: var(--gold-200);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.qty-flat-note {
+  margin: 0 0 0.65rem;
+  color: var(--gold-200);
+  font-size: 0.9rem;
+}
+
+.qty-min-note {
+  margin: 0 0 0.65rem;
+  color: #ff8a96;
+  font-size: 0.9rem;
+}
