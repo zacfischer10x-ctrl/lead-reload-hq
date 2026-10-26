@@ -59,6 +59,8 @@ Use the signing secret (`whsec_…`) of **this** endpoint from Stripe Dashboard 
 - `customer.subscription.deleted`
 - `invoice.paid`
 
+`checkout.session.completed` with `payment_status` `paid` stores the order and sends one confirmation email (`ORDER_EMAIL.md`). Add `checkout.session.async_payment_succeeded` as well if a delayed payment method should email when the payment later clears. Card checkouts are covered by `checkout.session.completed`. `invoice.paid` records a renewal and does not send another confirmation. An expired or unpaid session does not send mail.
+
 ## Functions
 
 | Function | Role |
@@ -103,6 +105,21 @@ Same 5 age bands for every lead type. No quantity tiers or volume discounts.
 ### Storefront without Stripe
 
 Pay step shows **Payments coming online tonight** and disables checkout — no crash.
+
+## Order confirmation email
+
+Env vars (values only in Netlify; details and DNS in `ORDER_EMAIL.md`):
+
+| Variable | Purpose |
+|---|---|
+| `ORDER_EMAIL_PROVIDER` | `gmail-api` (default) or `off` |
+| `ORDER_EMAIL_FROM` | From header, planned `Lead Reload HQ <support@leadreloadhq.com>` |
+| `ORDER_EMAIL_REPLY_TO` | Reply-To, planned `support@leadreloadhq.com` |
+| `GMAIL_IMPERSONATE` | Workspace user to send as, planned `support@leadreloadhq.com` |
+| `GMAIL_SERVICE_ACCOUNT_JSON` | Service-account key (secret) |
+| `ORDER_EMAIL_BCC` | Optional. Unset means no BCC. |
+
+Preview the copy without a purchase: `node scripts/preview-order-email.js`. A failed send does not change the webhook's `200` or the stored order.
 
 ## Test card (test mode)
 

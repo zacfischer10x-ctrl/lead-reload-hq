@@ -2,7 +2,7 @@
 
 > **Read this first.** Anyone (human or agent) changing this repo must read this brief before touching anything, and follow the [Working rules](#working-rules) at the bottom.
 
-_Last updated: 2026-09-26 (ET)_
+_Last updated: 2026-10-26 (ET)_
 
 ---
 
@@ -83,6 +83,10 @@ netlify/functions/          Serverless functions
                             "Payments coming online tonight".
   stripe-webhook.js         Verifies Stripe signature (required; no secret → 503, bad/missing
                             signature → 400); stores orders/subscriptions in Netlify Blobs.
+                            A paid checkout session also sends one confirmation email.
+                            Mail failure still returns 200 and does not undo fulfillment.
+  lib/email.js              Gmail API sender (Workspace service account). Swappable providers.
+  lib/order-confirmation.js Subject, plain text, and HTML for that email.
   create-portal.js          DISABLED 2026-09-25 (403 portal_disabled) until it sits behind
                             admin login or a signed customer session.
   admin-me.js               Who am I: 200 {email} for an allowlisted Identity user, else 401/403.
@@ -93,7 +97,8 @@ netlify/functions/          Serverless functions
                             http.js (JSON/CORS/SITE_URL), stripe-client.js,
                             pricing.js (server-side price table — must match public/app.js)
 scripts/                    test-pricing.js, test-webhook.js, test-portal.js, test-probe.js,
-                            test-admin-auth.js (`npm test`, no deps)
+                            test-admin-auth.js, test-order-email.js, preview-order-email.js
+                            (`npm test`, no extra deps beyond package.json)
 netlify.toml                Build settings, /api/* → functions redirect, /admin redirect, security headers
 package.json                Deps: stripe, @netlify/blobs
 .env.example                Placeholder env var names only (real values live in Netlify)
@@ -101,6 +106,7 @@ PROJECT_BRIEF.md            This file
 CHANGELOG.md                Dated change log (newest first)
 README.md                   Quick start; points here
 STRIPE_SETUP.md             Stripe env vars, webhook URL + events
+ORDER_EMAIL.md              Workspace domain, MX/SPF/DKIM/DMARC, env vars, preview command
 DEPLOY_INFO.md              Snapshot of initial deploy + DNS instructions (historical)
 ```
 
@@ -133,7 +139,15 @@ Values live **only in Netlify env vars** for site `lead-reload-hq` — never in 
 | `STRIPE_WEBHOOK_SECRET` | Yes (for webhook) | Verifies Stripe webhook signatures |
 | `STRIPE_PUBLISHABLE_KEY` | Optional | Reserved (Checkout is hosted) |
 | `SITE_URL` | Recommended | Base for success/cancel + portal return URLs |
+| `ORDER_EMAIL_PROVIDER` | No | `gmail-api` (default) sends the paid-order confirmation. `off` stores the order and sends nothing. |
+| `ORDER_EMAIL_FROM` | Yes, to send mail | From header. Planned value: `Lead Reload HQ <support@leadreloadhq.com>` |
+| `ORDER_EMAIL_REPLY_TO` | No | Reply-To. Planned value: `support@leadreloadhq.com`. Defaults to the address in `ORDER_EMAIL_FROM`. |
+| `GMAIL_IMPERSONATE` | No, when From contains the mailbox | Workspace user the service account sends as. Planned value: `support@leadreloadhq.com`. |
+| `GMAIL_SERVICE_ACCOUNT_JSON` | Yes, to send mail | Service-account JSON key, or its base64. Secret. Never commit it. |
+| `ORDER_EMAIL_BCC` | No | Comma-separated extra recipients. Unset means no BCC. |
 | ~~`ADMIN_DAN_PASSWORD`~~, ~~`ADMIN_ZAC_PASSWORD`~~, ~~`ADMIN_PASSWORD`~~, ~~`ADMIN_SESSION_SECRET`~~ | **Retired 2026-09-26** | No longer read. Admin uses Netlify Identity (no env vars). Delete them from Netlify after the Identity admin is verified live. |
+
+Setup steps for the mailbox, DNS, and the service account are in `ORDER_EMAIL.md`. Until those vars are set, a paid order is stored and no email is sent.
 
 ---
 
@@ -148,7 +162,8 @@ Values live **only in Netlify env vars** for site `lead-reload-hq` — never in 
   - `invoice.paid`
 - [x] **(c)** `SITE_URL = https://leadreloadhq.com` — **DONE 2026-09-24**.
 - [ ] **(d)** Admin → Netlify Identity (2026-09-26): after this code is live on `main`, invite `dwhigham94@gmail.com` and `zacfischer10x@gmail.com` (Netlify → Identity → Invite users), each accepts and sets a password, both sign in at `/admin/`, then delete the retired `ADMIN_*` env vars.
-- [ ] Zac creates private repo `zacfischer10x-ctrl/lead-reload-hq`, pushes this code, adds the Netlify deploy key + webhook, then confirms a push to `main` produces a successful production deploy (Netlify side already linked 2026-09-24).
+- [ ] Zac creates private repo `zacfischer10x-ctrl/lead-reload-hq`, pushes this code, adds the Netlify deploy key + webhook, then confirms a push to `main` produces a successful production deploy (Netlify side already linked 2026-09-24). The repo was later made public (2026-09-25) so Netlify's free plan can build it.
+- [ ] **(e)** Order confirmation email (2026-10-26, pull request, not live until it is merged and the env vars are set): add `leadreloadhq.com` to Google Workspace, publish the MX, SPF, and DKIM records in `ORDER_EMAIL.md`, set `ORDER_EMAIL_FROM`, `ORDER_EMAIL_REPLY_TO`, `GMAIL_IMPERSONATE`, and `GMAIL_SERVICE_ACCOUNT_JSON` in Netlify, then send a test with `node scripts/preview-order-email.js --send`. `ORDER_EMAIL_PROVIDER` stays `gmail-api` unless you set it to `off`. Leave `ORDER_EMAIL_BCC` unset unless a copy should also go to Dan and Zac.
 
 ---
 

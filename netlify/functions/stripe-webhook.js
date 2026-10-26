@@ -3,6 +3,7 @@
 const { getStripe, stripeConfigured } = require("./lib/stripe-client");
 const { ordersStore, subsStore, setJson } = require("./lib/blobs");
 const { text } = require("./lib/http");
+const { deliverPaidOrderConfirmation } = require("./lib/order-confirmation");
 
 /**
  * Exact bytes Stripe signed. Keep base64 bodies as a Buffer so signature
@@ -22,6 +23,107 @@ function header(event, name) {
     if (key.toLowerCase() === want) return headers[key];
   }
   return undefined;
+}
+
+function asObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value;
+}
+
+async function readExisting(store, key) {
+  try {
+    return asObject(await store.get(key, { type: "json" }));
+  } catch (err) {
+    console.error(
+      "stripe-webhook: could not read existing record",
+      err && err.message ? err.message : err
+    );
+    return {};
+  }
+}
+
+/**
+ * Refresh the checkout snapshot without undoing later fulfillment.
+ * A Stripe retry must not flip a fulfilled order back to open, and must
+ * keep confirmationEmail so the email stays idempotent.
+ */
+function checkoutRecord(existing, fresh) {
+  const prior = asObject(existing);
+  const priorEmail =
+    prior.confirmationEmail && typeof prior.confirmationEmail === "object"
+      ? prior.confirmationEmail
+      : null;
+  return {
+    ...prior,
+    ...fresh,
+    status: prior.status || fresh.status,
+    confirmationEmail: priorEmail,
+  };
+}
+
+async function recordCheckoutSession(event, session) {
+  const meta = session.metadata || {};
+  const paidAt = new Date(
+    (session.created || Math.floor(Date.now() / 1000)) * 1000
+  ).toISOString();
+  const email =
+    session.customer_details?.email || session.customer_email || "";
+  const contact = {
+    email,
+    methods: (meta.contactMethods || "").split(",").filter(Boolean),
+    other: meta.contactOther || "",
+  };
+
+  if (session.mode === "payment") {
+    const store = ordersStore(event);
+    const existing = await readExisting(store, session.id);
+    const record = checkoutRecord(existing, {
+      id: session.id,
+      type: "one-time",
+      status: "open",
+      email,
+      amountTotal: session.amount_total,
+      currency: session.currency,
+      paidAt,
+      stripeSessionId: session.id,
+      stripePaymentIntentId: session.payment_intent || null,
+      stripeCustomerId: session.customer || null,
+      metadata: meta,
+      qty: Number(meta.quantity) || null,
+      billingCadence: meta.billingCadence || "one-time",
+      contact,
+      updatedAt: new Date().toISOString(),
+    });
+    await setJson(store, session.id, record);
+    return { session, store, key: session.id, record };
+  }
+
+  if (session.mode === "subscription" && session.subscription) {
+    const subId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : session.subscription.id;
+    const store = subsStore(event);
+    const existing = await readExisting(store, subId);
+    const record = checkoutRecord(existing, {
+      id: subId,
+      status: "active",
+      email,
+      stripeSessionId: session.id,
+      stripeSubscriptionId: subId,
+      stripeCustomerId: session.customer || null,
+      billingCadence: meta.billingCadence || "monthly",
+      qty: Number(meta.quantity) || null,
+      metadata: meta,
+      paidAt,
+      contact,
+      updatedAt: new Date().toISOString(),
+    });
+    await setJson(store, subId, record);
+    return { session, store, key: subId, record };
+  }
+
+  return null;
 }
 
 exports.handler = async (event) => {
@@ -50,63 +152,12 @@ exports.handler = async (event) => {
     return text(400, "invalid_signature");
   }
 
+  let savedCheckout = null;
   try {
     switch (stripeEvent.type) {
-      case "checkout.session.completed": {
-        const session = stripeEvent.data.object;
-        const meta = session.metadata || {};
-        const paidAt = new Date(
-          (session.created || Math.floor(Date.now() / 1000)) * 1000
-        ).toISOString();
-        const email =
-          session.customer_details?.email || session.customer_email || "";
-
-        if (session.mode === "payment") {
-          await setJson(ordersStore(event), session.id, {
-            id: session.id,
-            type: "one-time",
-            status: "open",
-            email,
-            amountTotal: session.amount_total,
-            currency: session.currency,
-            paidAt,
-            stripeSessionId: session.id,
-            stripePaymentIntentId: session.payment_intent || null,
-            stripeCustomerId: session.customer || null,
-            metadata: meta,
-            qty: Number(meta.quantity) || null,
-            billingCadence: meta.billingCadence || "one-time",
-            contact: {
-              email,
-              methods: (meta.contactMethods || "").split(",").filter(Boolean),
-              other: meta.contactOther || "",
-            },
-            updatedAt: new Date().toISOString(),
-          });
-        } else if (session.mode === "subscription" && session.subscription) {
-          const subId =
-            typeof session.subscription === "string"
-              ? session.subscription
-              : session.subscription.id;
-          await setJson(subsStore(event), subId, {
-            id: subId,
-            status: "active",
-            email,
-            stripeSessionId: session.id,
-            stripeSubscriptionId: subId,
-            stripeCustomerId: session.customer || null,
-            billingCadence: meta.billingCadence || "monthly",
-            qty: Number(meta.quantity) || null,
-            metadata: meta,
-            paidAt,
-            contact: {
-              email,
-              methods: (meta.contactMethods || "").split(",").filter(Boolean),
-              other: meta.contactOther || "",
-            },
-            updatedAt: new Date().toISOString(),
-          });
-        }
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded": {
+        savedCheckout = await recordCheckoutSession(event, stripeEvent.data.object);
         break;
       }
       case "customer.subscription.created":
@@ -159,6 +210,21 @@ exports.handler = async (event) => {
   } catch (err) {
     console.error("webhook handler error", err);
     return text(500, "handler_error");
+  }
+
+  // Email runs only after the order is stored, and only for a paid checkout.
+  // Failures are swallowed: Stripe must still see 200 so it does not retry
+  // the whole event solely because mail failed. Renewals (invoice.paid) and
+  // expired/abandoned sessions never reach this call.
+  if (savedCheckout && savedCheckout.session && savedCheckout.session.payment_status === "paid") {
+    try {
+      await deliverPaidOrderConfirmation(savedCheckout);
+    } catch (err) {
+      console.error(
+        "order confirmation email failed (order was saved)",
+        err && err.message ? err.message : err
+      );
+    }
   }
 
   return text(200, "ok");

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "netlify dev",
     "build": "echo 'Static site \u2014 no build step'",
-    "test": "node scripts/test-pricing.js && node scripts/test-webhook.js && node scripts/test-portal.js && node scripts/test-probe.js && node scripts/test-admin-auth.js",
+    "test": "node scripts/test-pricing.js && node scripts/test-webhook.js && node scripts/test-portal.js && node scripts/test-probe.js && node scripts/test-admin-auth.js && node scripts/test-order-email.js",
+    "test:email": "node scripts/test-order-email.js",
+    "email:preview": "node scripts/preview-order-email.js",
     "test:pricing": "node scripts/test-pricing.js",
     "test:webhook": "node scripts/test-webhook.js",
     "test:portal": "node scripts/test-portal.js",
