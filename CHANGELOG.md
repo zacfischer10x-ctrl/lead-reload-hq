@@ -2,6 +2,28 @@
 
 Newest first. Times are ET (America/New_York). Add a dated entry after every change.
 
+## 2026-10-26
+
+### ~10:00 AM ET — Paid order confirmation email (Gmail API). Pull request only, not merged.
+- **When:** `stripe-webhook` sends one email after `checkout.session.completed` or `checkout.session.async_payment_succeeded` with `payment_status` `paid`. Unpaid, `no_payment_required`, missing `payment_status`, and `checkout.session.expired` do not send. `invoice.paid` still records a renewal and does not send this email.
+- **Idempotent:** the order stores `confirmationEmail.status`. A second delivery of the same paid checkout does not send again. A send that throws is saved as `failed`, the handler still returns `200`, and the order row remains. If the order write itself throws, the handler still returns `500` and does not try to email.
+- **Fulfillment:** replaying the checkout event keeps an existing `status` (including `fulfilled`) and `fulfilledAt`. It no longer forces the row back to `open` / `active`.
+- **Provider:** Gmail API over HTTPS, as a Workspace user, via a service account limited to scope `https://www.googleapis.com/auth/gmail.send`. SMTP with an app password was not used; it is a poor fit for a Netlify function (10 second limit, and Google blocks many datacenter SMTP logins). The provider map is `netlify/functions/lib/email.js`.
+- **From / Reply-To:** env only. Planned mailbox `support@leadreloadhq.com`. Optional `ORDER_EMAIL_BCC` is off when unset. No secrets in the repo.
+- **Copy:** subject `Your Lead Reload HQ order is confirmed`. Plain text and HTML. The delivery-time paragraph is a `[PLACEHOLDER: ...]` because this repo and `PROJECT_BRIEF.md` do not state a turnaround. The live Terms of Sale do; see drift below. Preview: `node scripts/preview-order-email.js`.
+- **Tests:** `scripts/test-order-email.js` is part of `npm test`.
+- **Docs:** `ORDER_EMAIL.md` (Workspace, MX, SPF, DKIM, DMARC, env vars). `PROJECT_BRIEF.md`, `STRIPE_SETUP.md`, `README.md`, `.env.example` list the env names.
+- **Not deployed.** `main` auto-deploys. Dan and Zac approve webhook changes before merge.
+
+### Drift noted the same morning (live site vs `main` `59644cb`). Not copied into this branch.
+Production `https://leadreloadhq.com` and `https://lead-reload-hq.netlify.app` serve the same HTML (identical etag). Both are ahead of `main`:
+- Asset query `?v=20261001tos2` on `styles.css`, `app.js`, and admin assets. `main` still has `styles.css?v=20260928copy` and `app.js?v=20260925hq`.
+- Storefront adds **Business Owner Raw Data** (`business-owner`, $0.003/record, $100 minimum, up to 1,000,000 records, no age band) and a required Terms of Sale checkbox (`TERMS_VERSION = "2026-10-01-tos2"`, `termsAccepted`). `main` has neither, and `create-checkout` on `main` would reject that lead type.
+- `/terms/` is live (version `2026-10-01-tos2`, updated October 1, 2026). Section 2 says allow up to 3-5 business days from payment, delivery is a data file or download link, and each subscription period is delivered within 3-5 business days of that period's payment. Section 13 contact email is `dwhigham94@gmail.com`. `/subscription-terms/` and `/privacy/` are Netlify 404s.
+- Admin UI differs: "Completed" vs this repo's "Fulfilled", order-type filter, CSV export, renewal rows described as work to fulfill, `orders-view.js`, link to terms. `public/admin/index.html` on `main` does not match.
+- DNS: apex A `75.2.60.5`, `www` CNAME to Netlify, no MX, no SPF. DMARC already exists: `v=DMARC1; p=quarantine; adkim=r; aspf=r; rua=mailto:dmarc_rua@onsecureserver.net;`.
+- Webhook `GET` returns `405 method_not_allowed`, same as `main`. Deployed function source was not visible, so production `create-checkout` / `stripe-webhook` may also be ahead of `main`. This branch does not try to reconstruct that deploy.
+
 ## 2026-09-28
 
 ### ~6:40 AM ET — Neutral lead wording (non-exclusive) + offline-banner fix _(branch `copy/non-exclusive-neutral`, pending Zac's merge; decided by Dan)_
